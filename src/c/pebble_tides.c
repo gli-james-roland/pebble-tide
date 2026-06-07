@@ -374,6 +374,11 @@ static bool prv_is_night(int32_t e) {
 }
 
 #define TIDE_COLOR GColorVividCerulean
+#if defined(PBL_COLOR)
+static const uint8_t BAYER4[4][4] = {
+  { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 }
+};
+#endif
 static int16_t s_sh[MAX_WIN_POINTS];   // control-point heights (cm), for labels
 static int s_curve_mode = 1;           // 0 = merged Catmull, 1 = cosine-between-extrema (experiment)
 
@@ -517,13 +522,10 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
       int ph = y_bottom - y_top;
       graphics_context_set_stroke_color(ctx, TIDE_COLOR);
       for (int yy = y; yy <= y_bottom; yy++) {
-        int band = ph > 0 ? (yy - y_top) * 4 / ph : 0;   // 0 (top) .. 3 (bottom)
-        bool draw;
-        if (band <= 0) { draw = true; }                  // solid blue near surface
-        else if (band == 1) { draw = ((x + yy) & 3) != 0; }   // ~75%
-        else if (band == 2) { draw = ((x + yy) & 1) == 0; }   // ~50%
-        else { draw = ((x + yy) & 3) == 0; }                  // ~25%, most transparent
-        if (draw) { graphics_draw_pixel(ctx, GPoint(x, yy)); }
+        // Ordered 4x4 Bayer dither: opacity 16 at the top of the plot fading to
+        // 0 at the bottom, so the blue smoothly thins out toward the deep edge.
+        int op = ph > 0 ? 16 - (yy - y_top) * 16 / ph : 16;
+        if (BAYER4[yy & 3][x & 3] < op) { graphics_draw_pixel(ctx, GPoint(x, yy)); }
       }
 #else
       if (night) {
@@ -573,20 +575,21 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
 
     time_t pt = (time_t)(t0 + (long)(s_sx[i] - x0) * WINDOW_SECONDS / plot_w);
     struct tm *lt = localtime(&pt);
-    char tstr[12], hstr[12], lbl[28];
+    char tstr[12], hstr[12];
     strftime(tstr, sizeof(tstr), prv_time_fmt(), lt);
     prv_format_height(s_sh[i], hstr, sizeof(hstr));
-    snprintf(lbl, sizeof(lbl), "%s\n%s", tstr, hstr);
 
-    int pw = 64, ph = 34;
+    int pw = 72, ph = 36;
     int px = s_sx[i] - pw / 2;
     if (px < 0) { px = 0; }
     if (px + pw > b.size.w) { px = b.size.w - pw; }
     int py = high ? s_sy[i] - ph - 8 : s_sy[i] + 8;
     graphics_context_set_fill_color(ctx, high ? TIDE_COLOR : GColorFolly);
-    graphics_fill_rect(ctx, GRect(px, py, pw, ph), 5, GCornersAll);
+    graphics_fill_rect(ctx, GRect(px, py, pw, ph), 6, GCornersAll);
     graphics_context_set_text_color(ctx, GColorWhite);
-    graphics_draw_text(ctx, lbl, pill_font, GRect(px, py + 1, pw, ph),
+    graphics_draw_text(ctx, tstr, pill_font, GRect(px, py + 1, pw, 16),
+                       GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+    graphics_draw_text(ctx, hstr, pill_font, GRect(px, py + 18, pw, 16),
                        GTextOverflowModeFill, GTextAlignmentCenter, NULL);
   }
 
