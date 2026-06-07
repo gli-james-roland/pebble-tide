@@ -74,7 +74,6 @@ static int s_rx_count = 0;
 static int s_rx_len = 0;
 
 static char s_title_text[24];
-static char s_sub_text[28];
 
 // Graph scratch, kept off the small (~2 KB) app stack.
 static int16_t s_sx[MAX_WIN_POINTS], s_sy[MAX_WIN_POINTS];
@@ -305,22 +304,15 @@ static int prv_map_y(int height_cm, int y_top, int y_bottom, int lo, int hi) {
   return y_bottom - (int)((long)(height_cm - lo) * (y_bottom - y_top) / span);
 }
 
-// Catmull-Rom: smooth curve that passes through every control point, so the
-// exact highs and lows are preserved while the segments between them round off.
-static float prv_catmull(float p0, float p1, float p2, float p3, float t) {
-  float t2 = t * t, t3 = t2 * t;
-  return 0.5f * ((2.0f * p1) + (-p0 + p2) * t +
-                 (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 +
-                 (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
-}
-
 static int prv_level_cm_at(int32_t e) {
   for (int i = 0; i < s_point_count - 1; i++) {
     if (s_pt_epoch[i] <= e && e <= s_pt_epoch[i + 1]) {
       int32_t span = s_pt_epoch[i + 1] - s_pt_epoch[i];
       if (span <= 0) { return s_pt_height[i]; }
-      return s_pt_height[i] +
-        (int)((long)(s_pt_height[i + 1] - s_pt_height[i]) * (e - s_pt_epoch[i]) / span);
+      int32_t ha = s_pt_height[i], hb = s_pt_height[i + 1];
+      int32_t angle = (TRIG_MAX_ANGLE / 2) * (e - s_pt_epoch[i]) / span; // 0..pi
+      int32_t c = cos_lookup(angle);
+      return (ha + hb) / 2 + (int)(((long)(ha - hb) * c) / (2 * TRIG_MAX_RATIO));
     }
   }
   return s_point_count > 0 ? s_pt_height[0] : 0;
@@ -368,7 +360,6 @@ static const uint8_t BAYER4[4][4] = {
 };
 #endif
 static int16_t s_sh[MAX_WIN_POINTS];   // control-point heights (cm), for labels
-static int s_curve_mode = 1;           // 0 = merged Catmull, 1 = cosine-between-extrema (experiment)
 
 // EXPERIMENT: build the curve as a cosine between consecutive extrema (the
 // classic tide shape) instead of the merged hourly polyline. Returns 0 if
@@ -416,7 +407,7 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   // Draw the curve and fill edge-to-edge horizontally; on a round screen the
   // bezel clips the corners (intended). Only the inline labels clamp inward.
   int x0 = 0, x1 = b.size.w;
-  int y_top = PBL_IF_ROUND_ELSE(50, 44);
+  int y_top = PBL_IF_ROUND_ELSE(34, 26);
   int y_bottom = b.size.h - PBL_IF_ROUND_ELSE(40, 30);
   int plot_w = x1 - x0;
 
@@ -465,28 +456,8 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   }
   if (n < 2) { return; }
 
-  // Curve: cosine-between-extrema (experiment) with a Catmull-Rom fallback
-  // over the merged points when there aren't enough extrema in range.
-  int dn = 0;
-  if (s_curve_mode == 1) {
-    dn = prv_build_cosine(t0, t1, x0, plot_w, y_top, y_bottom, lo, hi);
-  }
-  if (dn < 2) {
-    dn = 0;
-    for (int i = 0; i < n - 1 && dn < MAX_DENSE - 1; i++) {
-      int i0 = i > 0 ? i - 1 : 0;
-      int i3 = i + 2 < n ? i + 2 : n - 1;
-      for (int s = 0; s < SMOOTH_STEPS && dn < MAX_DENSE - 1; s++) {
-        float t = (float)s / SMOOTH_STEPS;
-        s_dx[dn] = (int16_t)(prv_catmull(s_sx[i0], s_sx[i], s_sx[i + 1], s_sx[i3], t) + 0.5f);
-        s_dy[dn] = (int16_t)(prv_catmull(s_sy[i0], s_sy[i], s_sy[i + 1], s_sy[i3], t) + 0.5f);
-        dn++;
-      }
-    }
-    s_dx[dn] = s_sx[n - 1];
-    s_dy[dn] = s_sy[n - 1];
-    dn++;
-  }
+  // Curve: cosine between consecutive extrema (the tide shape; see ADR 0002).
+  int dn = prv_build_cosine(t0, t1, x0, plot_w, y_top, y_bottom, lo, hi);
 
   // Water fill: light-to-dark vertical gradient under the curve, with a grey
   // night-sky tint above it during dark hours. (B&W keeps a simple night
@@ -516,9 +487,9 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
         if (BAYER4[yy & 3][x & 3] < op) { graphics_draw_pixel(ctx, GPoint(x, yy)); }
       }
 #else
-      if (night) {
-        graphics_context_set_stroke_color(ctx, GColorBlack);
-        for (int yy = y_top + (x & 3); yy <= y_bottom; yy += 4) {
+      if (night && y > y_top) {
+        graphics_context_set_stroke_color(ctx, GColorWhite);
+        for (int yy = y_top + (x & 3); yy < y; yy += 4) {
           graphics_draw_pixel(ctx, GPoint(x, yy));
         }
       }
@@ -636,8 +607,10 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     if (px < 0) { px = 0; }
     if (px + pw > b.size.w) { px = b.size.w - pw; }
     int py = high ? s_sy[i] - ph - 8 : s_sy[i] + 8;
+#if defined(PBL_COLOR)
     graphics_context_set_fill_color(ctx, high ? TIDE_COLOR : GColorFolly);
     graphics_fill_rect(ctx, GRect(px, py, pw, ph), 6, GCornersAll);
+#endif
     graphics_context_set_text_color(ctx, GColorWhite);
     graphics_draw_text(ctx, tstr, pill_font, GRect(px, py + 1, pw, 16),
                        GTextOverflowModeFill, GTextAlignmentCenter, NULL);
