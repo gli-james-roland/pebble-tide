@@ -23,10 +23,9 @@
       "watchface": false
     },
     "messageKeys": [
-      "NEXT_TIDE_EPOCH",
-      "NEXT_TIDE_TYPE",
-      "NEXT_TIDE_HEIGHT_CM",
-      "STATION_NAME"
+      "CHUNK_INDEX",
+      "CHUNK_TOTAL",
+      "CHUNK_DATA"
     ],
     "resources": {
       "media": []
