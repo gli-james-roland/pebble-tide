@@ -12,6 +12,8 @@
 #define MAX_BLOB_BYTES 2048
 #define MAX_POINTS 256
 #define MAX_WIN_POINTS 96
+#define MAX_DENSE 800            // smoothed (Catmull-Rom) curve samples
+#define SMOOTH_STEPS 8           // sub-samples per control segment
 #define RECORD_BYTES 7
 #define FAR_WARNING_KM 500
 #define WINDOW_SECONDS (14 * 3600)
@@ -44,6 +46,11 @@ static int s_rx_count = 0;
 static int s_rx_len = 0;
 
 static char s_title_text[24];
+
+// Graph scratch, kept off the small (~2 KB) app stack.
+static int16_t s_sx[MAX_WIN_POINTS], s_sy[MAX_WIN_POINTS];
+static uint8_t s_sk[MAX_WIN_POINTS];
+static int16_t s_dx[MAX_DENSE], s_dy[MAX_DENSE];
 
 // ---------------------------------------------------------------------------
 // Parsing
@@ -172,6 +179,15 @@ static int prv_map_y(int height_cm, int y_top, int y_bottom, int lo, int hi) {
   return y_bottom - (int)((long)(height_cm - lo) * (y_bottom - y_top) / span);
 }
 
+// Catmull-Rom: smooth curve that passes through every control point, so the
+// exact highs and lows are preserved while the segments between them round off.
+static float prv_catmull(float p0, float p1, float p2, float p3, float t) {
+  float t2 = t * t, t3 = t2 * t;
+  return 0.5f * ((2.0f * p1) + (-p0 + p2) * t +
+                 (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 +
+                 (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
+}
+
 static void prv_graph_update(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
   graphics_context_set_fill_color(ctx, GColorWhite);
@@ -196,33 +212,47 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   int lo = s_min_cm - pad, hi = s_max_cm + pad;
 
   // Project points in (and just past) the window to screen space.
-  int16_t sx[MAX_WIN_POINTS], sy[MAX_WIN_POINTS];
-  uint8_t sk[MAX_WIN_POINTS];
   int n = 0;
   for (int i = 0; i < s_point_count && n < MAX_WIN_POINTS; i++) {
     if (s_pt_epoch[i] < t0 - 3600 || s_pt_epoch[i] > t1 + 3600) { continue; }
     int x = x0 + (int)((long)(s_pt_epoch[i] - t0) * plot_w / WINDOW_SECONDS);
     if (x < x0) { x = x0; }
     if (x > x1) { x = x1; }
-    sx[n] = x;
-    sy[n] = prv_map_y(s_pt_height[i], y_top, y_bottom, lo, hi);
-    sk[n] = s_pt_kind[i];
+    s_sx[n] = x;
+    s_sy[n] = prv_map_y(s_pt_height[i], y_top, y_bottom, lo, hi);
+    s_sk[n] = s_pt_kind[i];
     n++;
   }
   if (n < 2) { return; }
 
-  // Water fill: for each column, interpolate the curve y and fill down.
+  // Build a smoothed (Catmull-Rom) polyline through the control points.
+  int dn = 0;
+  for (int i = 0; i < n - 1 && dn < MAX_DENSE - 1; i++) {
+    int i0 = i > 0 ? i - 1 : 0;
+    int i3 = i + 2 < n ? i + 2 : n - 1;
+    for (int s = 0; s < SMOOTH_STEPS && dn < MAX_DENSE - 1; s++) {
+      float t = (float)s / SMOOTH_STEPS;
+      s_dx[dn] = (int16_t)(prv_catmull(s_sx[i0], s_sx[i], s_sx[i + 1], s_sx[i3], t) + 0.5f);
+      s_dy[dn] = (int16_t)(prv_catmull(s_sy[i0], s_sy[i], s_sy[i + 1], s_sy[i3], t) + 0.5f);
+      dn++;
+    }
+  }
+  s_dx[dn] = s_sx[n - 1];
+  s_dy[dn] = s_sy[n - 1];
+  dn++;
+
+  // Water fill under the smoothed curve, column by column per dense segment.
   GColor water = PBL_IF_COLOR_ELSE(GColorVividCerulean, GColorClear);
   if (!gcolor_equal(water, GColorClear)) {
     graphics_context_set_stroke_color(ctx, water);
-    int seg = 0;
-    for (int x = sx[0]; x <= sx[n - 1]; x++) {
-      while (seg < n - 2 && sx[seg + 1] < x) { seg++; }
-      int dx = sx[seg + 1] - sx[seg];
-      int y = dx > 0
-        ? sy[seg] + (sy[seg + 1] - sy[seg]) * (x - sx[seg]) / dx
-        : sy[seg];
-      graphics_draw_line(ctx, GPoint(x, y), GPoint(x, y_bottom));
+    for (int i = 0; i < dn - 1; i++) {
+      int xa = s_dx[i], xb = s_dx[i + 1];
+      if (xb < xa) { continue; }
+      int dxw = xb - xa;
+      for (int x = xa; x <= xb; x++) {
+        int y = dxw > 0 ? s_dy[i] + (s_dy[i + 1] - s_dy[i]) * (x - xa) / dxw : s_dy[i];
+        graphics_draw_line(ctx, GPoint(x, y), GPoint(x, y_bottom));
+      }
     }
   }
 
@@ -235,41 +265,42 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     }
   }
 
-  // Curve line.
+  // Smoothed curve line.
   graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorDukeBlue, GColorBlack));
-  graphics_context_set_stroke_width(ctx, 2);
-  for (int i = 0; i < n - 1; i++) {
-    graphics_draw_line(ctx, GPoint(sx[i], sy[i]), GPoint(sx[i + 1], sy[i + 1]));
+  graphics_context_set_stroke_width(ctx, 3);
+  for (int i = 0; i < dn - 1; i++) {
+    graphics_draw_line(ctx, GPoint(s_dx[i], s_dy[i]), GPoint(s_dx[i + 1], s_dy[i + 1]));
   }
   graphics_context_set_stroke_width(ctx, 1);
 
-  // Markers + inline time labels at the extrema.
-  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+  // Markers + inline time labels at the extrema. Both are filled with a black
+  // outline; HIGH is dark blue, LOW is light green.
+  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
   for (int i = 0; i < n; i++) {
-    if (sk[i] == 0) { continue; }
-    bool high = sk[i] == 1;
-    GPoint p = GPoint(sx[i], sy[i]);
-    graphics_context_set_fill_color(ctx, GColorBlack);
+    if (s_sk[i] == 0) { continue; }
+    bool high = s_sk[i] == 1;
+    GPoint p = GPoint(s_sx[i], s_sy[i]);
+    graphics_context_set_fill_color(ctx, high
+        ? PBL_IF_COLOR_ELSE(GColorDukeBlue, GColorBlack)
+        : PBL_IF_COLOR_ELSE(GColorMintGreen, GColorWhite));
+    graphics_fill_circle(ctx, p, 5);
     graphics_context_set_stroke_color(ctx, GColorBlack);
-    if (high) {
-      graphics_fill_circle(ctx, p, 3);
-    } else {
-      graphics_draw_circle(ctx, p, 3);
-    }
+    graphics_context_set_stroke_width(ctx, 2);
+    graphics_draw_circle(ctx, p, 5);
+    graphics_context_set_stroke_width(ctx, 1);
 
-    // Look the point's epoch back up for the label time.
-    time_t pt = (time_t)(t0 + (long)(sx[i] - x0) * WINDOW_SECONDS / plot_w);
+    time_t pt = (time_t)(t0 + (long)(s_sx[i] - x0) * WINDOW_SECONDS / plot_w);
     struct tm *lt = localtime(&pt);
     char lbl[8];
     strftime(lbl, sizeof(lbl), clock_is_24h_style() ? "%H:%M" : "%l:%M", lt);
 
-    int lw = 40;
-    int lx = sx[i] - lw / 2;
+    int lw = 52;
+    int lx = s_sx[i] - lw / 2;
     if (lx < 0) { lx = 0; }
     if (lx + lw > b.size.w) { lx = b.size.w - lw; }
-    int ly = high ? sy[i] - 22 : sy[i] + 6;
+    int ly = high ? s_sy[i] - 30 : s_sy[i] + 9;
     graphics_context_set_text_color(ctx, GColorBlack);
-    graphics_draw_text(ctx, lbl, font, GRect(lx, ly, lw, 16),
+    graphics_draw_text(ctx, lbl, font, GRect(lx, ly, lw, 20),
                        GTextOverflowModeFill, GTextAlignmentCenter, NULL);
   }
 }
