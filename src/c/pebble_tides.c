@@ -593,6 +593,7 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   // (HIGH = tide blue, LOW = pink) with white time + height. (Dark-theme
   // experiment.)
   GFont pill_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+  bool small_screen = b.size.w < 160;  // 144px rect: show only the focused pill
   for (int i = 0; i < n; i++) {
     if (s_sk[i] == 0) { continue; }
     bool high = s_sk[i] == 1;
@@ -619,6 +620,11 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     int edge = PBL_IF_ROUND_ELSE(32, 6);
     if (s_sx[i] < edge || s_sx[i] > b.size.w - edge) { continue; }
 
+    // Small screens are too dense for every pill: show only the centred
+    // (Focused) tide; the other markers keep just their dots.
+    bool focused = s_sx[i] >= focus_x - 2 && s_sx[i] <= focus_x + 2;
+    if (small_screen && !focused) { continue; }
+
     time_t pt = (time_t)(t0 + (long)(s_sx[i] - x0) * WINDOW_SECONDS / plot_w);
     struct tm *lt = localtime(&pt);
     char tstr[12], hstr[12];
@@ -630,7 +636,13 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     if (px < 0) { px = 0; }
     if (px + pw > b.size.w) { px = b.size.w - pw; }
     int py = high ? s_sy[i] - ph - 8 : s_sy[i] + 8;
-    graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(high ? TIDE_COLOR : GColorFolly, GColorBlack));
+    GColor pill_fill = PBL_IF_COLOR_ELSE(high ? TIDE_COLOR : GColorFolly, GColorBlack);
+    if (small_screen) {              // centred tide: red pill below the dot
+      pill_fill = PBL_IF_COLOR_ELSE(GColorRed, GColorBlack);
+      py = s_sy[i] + 8;
+      if (py + ph > y_bottom) { py = s_sy[i] - ph - 8; }
+    }
+    graphics_context_set_fill_color(ctx, pill_fill);
     graphics_fill_rect(ctx, GRect(px, py, pw, ph), 6, GCornersAll);
 #if !defined(PBL_COLOR)
     graphics_context_set_stroke_color(ctx, GColorWhite);
