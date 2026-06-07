@@ -52,6 +52,12 @@ static int16_t s_sx[MAX_WIN_POINTS], s_sy[MAX_WIN_POINTS];
 static uint8_t s_sk[MAX_WIN_POINTS];
 static int16_t s_dx[MAX_DENSE], s_dy[MAX_DENSE];
 
+// Navigation + curve-pan animation state
+static int s_focus_idx = -1;        // index into points of the Focused Tide
+static int32_t s_center_epoch = 0;  // animated window-center time
+static Animation *s_pan_anim = NULL;
+static int32_t s_pan_from = 0, s_pan_to = 0;
+
 // ---------------------------------------------------------------------------
 // Parsing
 // ---------------------------------------------------------------------------
@@ -142,6 +148,15 @@ static int prv_focus_index(void) {
   return last_ext; // all extrema in the past -> last known
 }
 
+// Snap focus (no animation) to the next upcoming extremum. Used on launch and
+// whenever fresh data arrives.
+static void prv_reset_focus(void) {
+  s_focus_idx = prv_focus_index();
+  if (s_focus_idx >= 0) {
+    s_center_epoch = s_pt_epoch[s_focus_idx];
+  }
+}
+
 static void prv_update_status(void) {
   static char far_text[28];
   if (!connection_service_peek_pebble_app_connection()) {
@@ -159,7 +174,7 @@ static void prv_update_chrome(void) {
     text_layer_set_text(s_title_layer, "Loading…");
     text_layer_set_text(s_station_layer, "");
   } else {
-    int f = prv_focus_index();
+    int f = s_focus_idx;
     time_t t = (time_t)(f >= 0 ? s_pt_epoch[f] : time(NULL));
     struct tm *lt = localtime(&t);
     strftime(s_title_text, sizeof(s_title_text), "%a %b %e", lt);
@@ -194,10 +209,9 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   if (!s_has_data || s_point_count < 2) { return; }
 
-  int focus = prv_focus_index();
-  if (focus < 0) { return; }
-  time_t t0 = (time_t)s_pt_epoch[focus] - WINDOW_SECONDS / 2;
-  time_t t1 = (time_t)s_pt_epoch[focus] + WINDOW_SECONDS / 2;
+  if (s_focus_idx < 0) { return; }
+  time_t t0 = (time_t)s_center_epoch - WINDOW_SECONDS / 2;
+  time_t t1 = (time_t)s_center_epoch + WINDOW_SECONDS / 2;
 
   // Draw the curve and fill edge-to-edge horizontally; on a round screen the
   // bezel clips the corners (intended). Only the inline labels clamp inward.
@@ -341,6 +355,7 @@ static void prv_inbox_received(DictionaryIterator *iter, void *context) {
   if (s_rx_total > 0 && s_rx_count >= s_rx_total) {
     if (prv_parse_blob(s_rx_buf, s_rx_len)) {
       prv_persist_blob(s_rx_buf, s_rx_len);
+      prv_reset_focus();
       prv_update_chrome();
       layer_mark_dirty(s_graph_layer);
       APP_LOG(APP_LOG_LEVEL_INFO, "Cache updated: %d points, %s",
@@ -352,6 +367,88 @@ static void prv_inbox_received(DictionaryIterator *iter, void *context) {
 
 static void prv_connection_handler(bool connected) {
   prv_update_status();
+}
+
+// ---------------------------------------------------------------------------
+// Navigation + curve-pan animation
+// ---------------------------------------------------------------------------
+
+static void prv_anim_update(Animation *a, AnimationProgress prog) {
+  s_center_epoch = s_pan_from +
+    (int32_t)((int64_t)(s_pan_to - s_pan_from) * prog / ANIMATION_NORMALIZED_MAX);
+  layer_mark_dirty(s_graph_layer);
+}
+
+static const AnimationImplementation s_anim_impl = { .update = prv_anim_update };
+
+// Pan the window center toward target_epoch. A press mid-pan cancels and
+// retargets from the current interpolated center (no queueing).
+static void prv_pan_to(int32_t target_epoch) {
+  if (s_pan_anim) {
+    animation_unschedule(s_pan_anim);
+    animation_destroy(s_pan_anim);
+    s_pan_anim = NULL;
+  }
+  s_pan_from = s_center_epoch;
+  s_pan_to = target_epoch;
+  s_pan_anim = animation_create();
+  animation_set_implementation(s_pan_anim, &s_anim_impl);
+  animation_set_duration(s_pan_anim, 250);
+  animation_set_curve(s_pan_anim, AnimationCurveEaseInOut);
+  animation_schedule(s_pan_anim);
+}
+
+static int prv_step_extremum(int from, int dir) {
+  for (int i = from + dir; i >= 0 && i < s_point_count; i += dir) {
+    if (s_pt_kind[i] != 0) { return i; }
+  }
+  return -1; // no further extremum in that direction (clamp, no wrap)
+}
+
+static int prv_extremum_near(int32_t target_epoch) {
+  int best = -1; int32_t best_d = 0;
+  for (int i = 0; i < s_point_count; i++) {
+    if (s_pt_kind[i] == 0) { continue; }
+    int32_t d = s_pt_epoch[i] > target_epoch
+        ? s_pt_epoch[i] - target_epoch : target_epoch - s_pt_epoch[i];
+    if (best < 0 || d < best_d) { best = i; best_d = d; }
+  }
+  return best;
+}
+
+static void prv_focus_to(int idx) {
+  if (idx < 0 || idx >= s_point_count) { return; }
+  s_focus_idx = idx;
+  prv_pan_to(s_pt_epoch[idx]);
+  prv_update_chrome();
+}
+
+static void prv_click_up(ClickRecognizerRef r, void *ctx) {
+  prv_focus_to(prv_step_extremum(s_focus_idx, -1)); // previous tide
+}
+
+static void prv_click_down(ClickRecognizerRef r, void *ctx) {
+  prv_focus_to(prv_step_extremum(s_focus_idx, +1)); // next tide
+}
+
+static void prv_click_select(ClickRecognizerRef r, void *ctx) {
+  prv_focus_to(prv_focus_index()); // Now Jump: back to the next upcoming tide
+}
+
+static void prv_long_up(ClickRecognizerRef r, void *ctx) {
+  if (s_focus_idx >= 0) { prv_focus_to(prv_extremum_near(s_pt_epoch[s_focus_idx] - 86400)); }
+}
+
+static void prv_long_down(ClickRecognizerRef r, void *ctx) {
+  if (s_focus_idx >= 0) { prv_focus_to(prv_extremum_near(s_pt_epoch[s_focus_idx] + 86400)); }
+}
+
+static void prv_click_config(void *ctx) {
+  window_single_click_subscribe(BUTTON_ID_UP, prv_click_up);
+  window_single_click_subscribe(BUTTON_ID_DOWN, prv_click_down);
+  window_single_click_subscribe(BUTTON_ID_SELECT, prv_click_select);
+  window_long_click_subscribe(BUTTON_ID_UP, 0, prv_long_up, NULL);
+  window_long_click_subscribe(BUTTON_ID_DOWN, 0, prv_long_down, NULL);
 }
 
 // ---------------------------------------------------------------------------
@@ -398,12 +495,14 @@ static void prv_window_unload(Window *window) {
 
 static void prv_init(void) {
   prv_load_persisted();
+  prv_reset_focus();
 
   s_window = window_create();
   window_set_window_handlers(s_window, (WindowHandlers) {
     .load = prv_window_load,
     .unload = prv_window_unload,
   });
+  window_set_click_config_provider(s_window, prv_click_config);
   window_stack_push(s_window, true);
 
   app_message_register_inbox_received(prv_inbox_received);
@@ -415,6 +514,11 @@ static void prv_init(void) {
 }
 
 static void prv_deinit(void) {
+  if (s_pan_anim) {
+    animation_unschedule(s_pan_anim);
+    animation_destroy(s_pan_anim);
+    s_pan_anim = NULL;
+  }
   connection_service_unsubscribe();
   window_destroy(s_window);
 }
