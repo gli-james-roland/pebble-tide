@@ -22,6 +22,17 @@
 #define PERSIST_BLOB_LEN 10
 #define PERSIST_BLOB_BASE 11
 
+// Issue #9: phone-config display prefs, persisted on their own keys (the blob
+// owns 10-18). Defaults below apply until the phone sends config.
+//   units: 0 = feet (default), 1 = metres
+//   clock: 0 = 12-hour AM/PM (default), 1 = 24-hour
+#define PERSIST_CONFIG_UNITS 20
+#define PERSIST_CONFIG_CLOCK 21
+#define UNITS_FEET 0
+#define UNITS_METRES 1
+#define CLOCK_12H 0
+#define CLOCK_24H 1
+
 static Window *s_window;
 static Layer *s_graph_layer;
 static TextLayer *s_title_layer;
@@ -49,6 +60,10 @@ static int s_max_cm = 0;
 static int s_sun_count = 0;
 static int32_t s_sun_rise[MAX_SUN_DAYS];
 static int32_t s_sun_set[MAX_SUN_DAYS];
+
+// Display config (defaults: feet + 12-hour), overridden by the phone.
+static int s_units = UNITS_FEET;
+static int s_clock = CLOCK_12H;
 
 // Chunk reassembly state
 static uint8_t s_rx_buf[MAX_BLOB_BYTES];
@@ -169,6 +184,39 @@ static void prv_load_persisted(void) {
 }
 
 // ---------------------------------------------------------------------------
+// Display config (issue #9): persist + format helpers
+// ---------------------------------------------------------------------------
+
+static void prv_load_config(void) {
+  s_units = persist_exists(PERSIST_CONFIG_UNITS)
+      ? persist_read_int(PERSIST_CONFIG_UNITS) : UNITS_FEET;
+  s_clock = persist_exists(PERSIST_CONFIG_CLOCK)
+      ? persist_read_int(PERSIST_CONFIG_CLOCK) : CLOCK_12H;
+}
+
+// Format a height (stored in cm, metric source of truth) into buf per s_units.
+// Feet: cm -> ft via *3.28084/100, one decimal ("x.x ft").
+// Metres: two decimals ("x.xx m"). Handles negative levels.
+static void prv_format_height(int height_cm, char *buf, int buf_len) {
+  if (s_units == UNITS_FEET) {
+    // tenths of a foot, rounded: cm * 3.28084 / 100 * 10 = cm * 0.328084
+    int neg = height_cm < 0;
+    int acm = neg ? -height_cm : height_cm;
+    int tenths = (int)(((long)acm * 328084L + 500000L) / 1000000L);
+    snprintf(buf, buf_len, "%s%d.%d ft", neg ? "-" : "", tenths / 10, tenths % 10);
+  } else {
+    int neg = height_cm < 0;
+    int acm = neg ? -height_cm : height_cm;
+    snprintf(buf, buf_len, "%s%d.%02d m", neg ? "-" : "", acm / 100, acm % 100);
+  }
+}
+
+// strftime format string for a tide time per s_clock.
+static const char *prv_time_fmt(void) {
+  return s_clock == CLOCK_24H ? "%H:%M" : "%l:%M %p";
+}
+
+// ---------------------------------------------------------------------------
 // Focus + text
 // ---------------------------------------------------------------------------
 
@@ -194,7 +242,7 @@ static void prv_reset_focus(void) {
 }
 
 static void prv_update_status(void) {
-  static char buf[28];
+  static char buf[40];
   if (!connection_service_peek_pebble_app_connection()) {
     text_layer_set_text(s_status_layer, "No phone · cached");
     return;
@@ -211,7 +259,9 @@ static void prv_update_status(void) {
     if (nb >= 0) {
       int r = s_pt_height[s_focus_idx] - s_pt_height[nb];
       if (r < 0) { r = -r; }
-      snprintf(buf, sizeof(buf), "Range %d.%02d m", r / 100, r % 100);
+      char rstr[16];
+      prv_format_height(r, rstr, sizeof(rstr));
+      snprintf(buf, sizeof(buf), "Range %s", rstr);
       text_layer_set_text(s_status_layer, buf);
       return;
     }
@@ -231,7 +281,7 @@ static void prv_update_chrome(void) {
   time_t ft = (time_t)s_pt_epoch[f];
   struct tm *lt = localtime(&ft);
   char tstr[12];
-  strftime(tstr, sizeof(tstr), "%l:%M %p", lt);
+  strftime(tstr, sizeof(tstr), prv_time_fmt(), lt);
   snprintf(s_title_text, sizeof(s_title_text), "%s %s", s_pt_kind[f] == 1 ? "HIGH" : "LOW", tstr);
   text_layer_set_text(s_title_layer, s_title_text);
 
@@ -476,7 +526,7 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     time_t pt = (time_t)(t0 + (long)(s_sx[i] - x0) * WINDOW_SECONDS / plot_w);
     struct tm *lt = localtime(&pt);
     char lbl[12];
-    strftime(lbl, sizeof(lbl), "%l:%M %p", lt); // 12-hour with AM/PM
+    strftime(lbl, sizeof(lbl), prv_time_fmt(), lt); // 12h AM/PM or 24h per config
 
     int lw = 80;
     int lx = s_sx[i] - lw / 2;
@@ -539,9 +589,8 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     graphics_context_set_fill_color(ctx, GColorBlack);
     gpath_draw_filled(ctx, arrow);
 
-    char hstr[10];
-    int ac = level < 0 ? -level : level;
-    snprintf(hstr, sizeof(hstr), "%d.%02d m", level / 100, ac % 100);
+    char hstr[16];
+    prv_format_height(level, hstr, sizeof(hstr));
     int hw = 54, hxx = nx + 20;
     if (hxx + hw > b.size.w) { hxx = nx - hw - 8; }
     graphics_context_set_text_color(ctx, GColorBlack);
@@ -555,7 +604,27 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
 // AppMessage chunk reassembly
 // ---------------------------------------------------------------------------
 
+// Issue #9: a display-config message (independent of the blob). Presence of
+// MESSAGE_KEY_CONFIG_UNITS marks it. Store, persist, redraw — no refetch.
+static bool prv_handle_config(DictionaryIterator *iter) {
+  Tuple *units_t = dict_find(iter, MESSAGE_KEY_CONFIG_UNITS);
+  if (!units_t) { return false; }
+  s_units = units_t->value->int32 == UNITS_METRES ? UNITS_METRES : UNITS_FEET;
+  Tuple *clock_t = dict_find(iter, MESSAGE_KEY_CONFIG_CLOCK);
+  if (clock_t) {
+    s_clock = clock_t->value->int32 == CLOCK_24H ? CLOCK_24H : CLOCK_12H;
+  }
+  persist_write_int(PERSIST_CONFIG_UNITS, s_units);
+  persist_write_int(PERSIST_CONFIG_CLOCK, s_clock);
+  prv_update_chrome();
+  layer_mark_dirty(s_graph_layer);
+  APP_LOG(APP_LOG_LEVEL_INFO, "Config: units=%d clock=%d", s_units, s_clock);
+  return true;
+}
+
 static void prv_inbox_received(DictionaryIterator *iter, void *context) {
+  if (prv_handle_config(iter)) { return; }
+
   Tuple *idx_t = dict_find(iter, MESSAGE_KEY_CHUNK_INDEX);
   Tuple *total_t = dict_find(iter, MESSAGE_KEY_CHUNK_TOTAL);
   Tuple *data_t = dict_find(iter, MESSAGE_KEY_CHUNK_DATA);
@@ -733,6 +802,7 @@ static void prv_tick(struct tm *tick_time, TimeUnits units_changed) {
 }
 
 static void prv_init(void) {
+  prv_load_config();
   prv_load_persisted();
   prv_reset_focus();
 

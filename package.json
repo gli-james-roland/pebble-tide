@@ -25,7 +25,9 @@
     "messageKeys": [
       "CHUNK_INDEX",
       "CHUNK_TOTAL",
-      "CHUNK_DATA"
+      "CHUNK_DATA",
+      "CONFIG_UNITS",
+      "CONFIG_CLOCK"
     ],
     "resources": {
       "media": []

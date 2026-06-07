@@ -1,11 +1,30 @@
 'use strict';
 
+var config = require('./config');
 var tides = require('./tides');
 var geo = require('./geo');
 var blob = require('./blob');
 var refresh = require('./refresh');
 var sun = require('./sun');
 var STATIONS = require('./stations');
+
+// Issue #9: phone-side display config. Two settings — height units (feet/metres)
+// and clock format (12h/24h) — sync to the watch on their own AppMessage
+// channel, fully independent of the tide blob. The watch persists them and
+// re-renders without refetching. pebble-clay can't build for this app's gabbro
+// and flint targets (Clay ships no prebuilt lib for them), so this is a
+// hand-rolled showConfiguration page (config.js) + webviewclosed JSON parse.
+//   CONFIG_UNITS: 0 = feet (default), 1 = metres
+//   CONFIG_CLOCK: 0 = 12-hour AM/PM (default), 1 = 24-hour
+
+function sendConfig() {
+  var s = config.read();
+  Pebble.sendAppMessage(
+    { CONFIG_UNITS: s.units, CONFIG_CLOCK: s.clock },
+    function () { console.log('Config sent to watch'); },
+    function (e) { console.log('Config send failed: ' + JSON.stringify(e)); }
+  );
+}
 
 // Issue #3: fetch a full week of high/low extrema, pack into a versioned blob,
 // and stream it to the watch in chunks. Refresh only on a new calendar day or
@@ -170,8 +189,22 @@ function onPositionError(err) {
 
 Pebble.addEventListener('ready', function () {
   console.log('pebble_tides pkjs ready');
+  sendConfig(); // push saved display prefs (or defaults) so the watch renders correctly
   navigator.geolocation.getCurrentPosition(onPosition, onPositionError, {
     timeout: 15000,
     maximumAge: 60000,
   });
+});
+
+Pebble.addEventListener('showConfiguration', function () {
+  Pebble.openURL(config.pageUrl());
+});
+
+// On save, persist the chosen settings to localStorage then re-send them on the
+// config channel so the watch re-renders without refetching. No response = user
+// cancelled, leave settings unchanged.
+Pebble.addEventListener('webviewclosed', function (e) {
+  if (!e || !e.response) { return; }
+  config.save(e.response);
+  sendConfig();
 });
