@@ -1,0 +1,35 @@
+{
+  "name": "pebble_tides",
+  "author": "MakeAwesomeHappen",
+  "version": "1.0.0",
+  "keywords": ["pebble-app"],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "pebble_tides",
+    "uuid": "32f9a767-ded7-4f50-bea7-16b141f5eaa6",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "aplite",
+      "basalt",
+      "chalk",
+      "diorite",
+      "emery",
+      "flint",
+      "gabbro"
+    ],
+    "watchapp": {
+      "watchface": false
+    },
+    "messageKeys": [
+      "NEXT_TIDE_EPOCH",
+      "NEXT_TIDE_TYPE",
+      "NEXT_TIDE_HEIGHT_CM",
+      "STATION_NAME"
+    ],
+    "resources": {
+      "media": []
+    }
+  }
+}

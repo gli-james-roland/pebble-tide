@@ -1,0 +1,10 @@
+# Pebble build output
+build/
+*.pbw
+.lock-waf_*
+
+# Emulator screenshots
+pebble_screenshot_*.png
+
+# Node
+node_modules/
