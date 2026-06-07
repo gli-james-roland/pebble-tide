@@ -41,7 +41,7 @@ A spot where the curve flattens but never reverses direction — no local max/mi
 The moment the water level crosses the midpoint between an adjacent High and Low. Derived, not an Extremum. Shown as secondary information when screen space allows.
 
 **Tide Curve**:
-The continuous water-level-over-time line drawn on screen for one day, built from hourly Tide Predictions. The Extrema are marked on top of it.
+The continuous water-level-over-time line drawn on screen for the visible window, generated as a cosine between consecutive Extrema (see docs/adr/0002). The Extrema are marked on top of it. (Originally built from hourly predictions per ADR 0001; superseded.)
 
 **Focused Tide**:
 The single Extremum the screen is currently centered on. UP steps to the previous Extremum, DOWN to the next; the window re-centers (with animation) so the Focused Tide sits in the middle of the screen. Its exact time, height, and countdown are shown as the headline. The default Focused Tide on launch is the next upcoming Extremum.

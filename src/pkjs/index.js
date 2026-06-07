@@ -20,7 +20,7 @@ var STATIONS = require('./stations');
 function sendConfig() {
   var s = config.read();
   Pebble.sendAppMessage(
-    { CONFIG_UNITS: s.units, CONFIG_CLOCK: s.clock },
+    { CONFIG_UNITS: s.units, CONFIG_CLOCK: s.clock, CONFIG_MIDTIDE: s.midtide },
     function () { console.log('Config sent to watch'); },
     function (e) { console.log('Config send failed: ' + JSON.stringify(e)); }
   );
@@ -131,24 +131,21 @@ function fetchWeek(station, distanceKm) {
   var from = new Date(now.getTime() - BACK_DAYS * 24 * 60 * 60 * 1000);
   var to = new Date(now.getTime() + WEEK_DAYS * 24 * 60 * 60 * 1000);
   var hiloUrl = seriesUrl(station.id, 'wlp-hilo', 'ALL', from, to);
-  var curveUrl = seriesUrl(station.id, 'wlp', 'SIXTY_MINUTES', from, to);
   var sunDays = sunDaysForWindow(from, to, station);
 
+  // The watch draws a cosine curve between extrema (ADR 0002), so we only need
+  // the high/low series -- no hourly wlp curve to fetch or cache.
   fetchJson(hiloUrl, function (e1, hilo) {
     if (e1 || !Array.isArray(hilo) || hilo.length === 0) {
       console.log('hilo fetch failed (' + e1 + '); keeping cache');
       return;
     }
-    fetchJson(curveUrl, function (e2, curve) {
-      if (e2 || !Array.isArray(curve) || curve.length === 0) {
-        console.log('curve fetch failed (' + e2 + '); keeping cache');
-        return;
-      }
-      var points = tides.mergePoints(tides.toCurvePoints(curve), tides.classifyExtrema(hilo));
-      var u8 = blob.packWeek(points, station, distanceKm, sunDays);
-      sendBlob(u8, station.id, function () {
-        writeJson(META_KEY, { date: todayStr(), stationId: station.id, version: blob.BLOB_VERSION });
-      });
+    var points = tides.classifyExtrema(hilo).map(function (x) {
+      return { epoch: x.epoch, heightCm: x.heightCm, kind: x.type === 'HIGH' ? 1 : 2 };
+    });
+    var u8 = blob.packWeek(points, station, distanceKm, sunDays);
+    sendBlob(u8, station.id, function () {
+      writeJson(META_KEY, { date: todayStr(), stationId: station.id, version: blob.BLOB_VERSION });
     });
   });
 }

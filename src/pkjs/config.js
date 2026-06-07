@@ -10,7 +10,7 @@
 //   units: 0 = feet (default), 1 = metres
 //   clock: 0 = 12-hour AM/PM (default), 1 = 24-hour
 var STORE_KEY = 'tideConfig';
-var DEFAULTS = { units: 0, clock: 0 };
+var DEFAULTS = { units: 0, clock: 0, midtide: 1 };  // mid-tide times ON by default
 
 function read() {
   try {
@@ -20,9 +20,10 @@ function read() {
     return {
       units: s.units === 1 ? 1 : 0,
       clock: s.clock === 1 ? 1 : 0,
+      midtide: s.midtide === 0 ? 0 : 1,
     };
   } catch (e) {
-    return { units: DEFAULTS.units, clock: DEFAULTS.clock };
+    return { units: DEFAULTS.units, clock: DEFAULTS.clock, midtide: DEFAULTS.midtide };
   }
 }
 
@@ -34,6 +35,7 @@ function save(response) {
     var next = {
       units: parsed.units === 1 ? 1 : 0,
       clock: parsed.clock === 1 ? 1 : 0,
+      midtide: parsed.midtide === 0 ? 0 : 1,
     };
     localStorage.setItem(STORE_KEY, JSON.stringify(next));
     return next;
@@ -71,12 +73,16 @@ function pageUrl() {
     '<label><input type="radio" name="clock" value="0"' + (s.clock === 0 ? ' checked' : '') + '>12-hour (AM/PM)</label>' +
     '<label><input type="radio" name="clock" value="1"' + (s.clock === 1 ? ' checked' : '') + '>24-hour</label>' +
     '</fieldset>' +
+    '<fieldset><legend>Mid-tide times</legend>' +
+    '<label><input type="radio" name="midtide" value="1"' + (s.midtide === 1 ? ' checked' : '') + '>Show</label>' +
+    '<label><input type="radio" name="midtide" value="0"' + (s.midtide === 0 ? ' checked' : '') + '>Hide</label>' +
+    '</fieldset>' +
     '<button id="save">Save</button>' +
     '<script>' +
     'function pick(n){var e=document.getElementsByName(n);' +
     'for(var i=0;i<e.length;i++){if(e[i].checked){return parseInt(e[i].value,10);}}return 0;}' +
     'document.getElementById("save").addEventListener("click",function(){' +
-    'var out={units:pick("units"),clock:pick("clock")};' +
+    'var out={units:pick("units"),clock:pick("clock"),midtide:pick("midtide")};' +
     'document.location="pebblejs://close#"+encodeURIComponent(JSON.stringify(out));});' +
     '</script></body></html>';
   return 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
