@@ -91,6 +91,7 @@ static int s_focus_idx = -1;        // index into points of the Focused Tide
 static int32_t s_center_epoch = 0;  // animated window-center time
 static Animation *s_pan_anim = NULL;
 static int32_t s_pan_from = 0, s_pan_to = 0;
+static bool s_pan_active = false;  // true while a curve-pan animation runs
 
 // ---------------------------------------------------------------------------
 // Parsing
@@ -478,19 +479,29 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
         graphics_context_set_stroke_color(ctx, GColorDarkGray);
         for (int yy = y_top; yy < y; yy++) { if (((x + yy) & 1) == 0) graphics_draw_pixel(ctx, GPoint(x, yy)); }
       }
-      int ph = y_bottom - y_top;
       graphics_context_set_stroke_color(ctx, TIDE_COLOR);
-      for (int yy = y; yy <= y_bottom; yy++) {
-        // Ordered 4x4 Bayer dither: opacity 16 at the top of the plot fading to
-        // 0 at the bottom, so the blue smoothly thins out toward the deep edge.
-        int op = ph > 0 ? 16 - (yy - y_top) * 16 / ph : 16;
-        if (BAYER4[yy & 3][x & 3] < op) { graphics_draw_pixel(ctx, GPoint(x, yy)); }
+      if (s_pan_active) {
+        // Cheap solid fill during the pan; full Bayer gradient when settled.
+        graphics_draw_line(ctx, GPoint(x, y), GPoint(x, y_bottom));
+      } else {
+        int ph = y_bottom - y_top;
+        for (int yy = y; yy <= y_bottom; yy++) {
+          int op = ph > 0 ? 16 - (yy - y_top) * 16 / ph : 16;
+          if (BAYER4[yy & 3][x & 3] < op) { graphics_draw_pixel(ctx, GPoint(x, yy)); }
+        }
       }
 #else
       if (night && y > y_top) {
         graphics_context_set_stroke_color(ctx, GColorWhite);
         for (int yy = y_top + (x & 3); yy < y; yy += 4) {
           graphics_draw_pixel(ctx, GPoint(x, yy));
+        }
+      }
+      // B&W water: sparse white speckle below the curve (skipped while panning).
+      if (!s_pan_active) {
+        graphics_context_set_stroke_color(ctx, GColorWhite);
+        for (int yy = y; yy <= y_bottom; yy++) {
+          if (((x * 2 + yy) & 7) == 0) { graphics_draw_pixel(ctx, GPoint(x, yy)); }
         }
       }
 #endif
@@ -582,19 +593,37 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   // (HIGH = tide blue, LOW = pink) with white time + height. (Dark-theme
   // experiment.)
   GFont pill_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+  bool small_screen = b.size.w < 160;  // 144px rect: show only the focused pill
   for (int i = 0; i < n; i++) {
     if (s_sk[i] == 0) { continue; }
     bool high = s_sk[i] == 1;
     GPoint p = GPoint(s_sx[i], s_sy[i]);
+#if defined(PBL_COLOR)
     graphics_context_set_fill_color(ctx, GColorBlack);
     graphics_fill_circle(ctx, p, 5);
     graphics_context_set_stroke_color(ctx, TIDE_COLOR);
     graphics_context_set_stroke_width(ctx, 2);
     graphics_draw_circle(ctx, p, 5);
     graphics_context_set_stroke_width(ctx, 1);
+#else
+    // B&W: shape carries high/low -- HIGH filled, LOW hollow.
+    graphics_context_set_fill_color(ctx, high ? GColorWhite : GColorBlack);
+    graphics_fill_circle(ctx, p, 5);
+    if (!high) {
+      graphics_context_set_stroke_color(ctx, GColorWhite);
+      graphics_context_set_stroke_width(ctx, 2);
+      graphics_draw_circle(ctx, p, 5);
+      graphics_context_set_stroke_width(ctx, 1);
+    }
+#endif
 
     int edge = PBL_IF_ROUND_ELSE(32, 6);
     if (s_sx[i] < edge || s_sx[i] > b.size.w - edge) { continue; }
+
+    // Small screens are too dense for every pill: show only the centred
+    // (Focused) tide; the other markers keep just their dots.
+    bool focused = s_sx[i] >= focus_x - 2 && s_sx[i] <= focus_x + 2;
+    if (small_screen && !focused) { continue; }
 
     time_t pt = (time_t)(t0 + (long)(s_sx[i] - x0) * WINDOW_SECONDS / plot_w);
     struct tm *lt = localtime(&pt);
@@ -607,9 +636,17 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     if (px < 0) { px = 0; }
     if (px + pw > b.size.w) { px = b.size.w - pw; }
     int py = high ? s_sy[i] - ph - 8 : s_sy[i] + 8;
-#if defined(PBL_COLOR)
-    graphics_context_set_fill_color(ctx, high ? TIDE_COLOR : GColorFolly);
+    GColor pill_fill = PBL_IF_COLOR_ELSE(high ? TIDE_COLOR : GColorFolly, GColorBlack);
+    if (small_screen) {              // centred tide: red pill below the dot
+      pill_fill = PBL_IF_COLOR_ELSE(GColorRed, GColorBlack);
+      py = s_sy[i] + 8;
+      if (py + ph > y_bottom) { py = s_sy[i] - ph - 8; }
+    }
+    graphics_context_set_fill_color(ctx, pill_fill);
     graphics_fill_rect(ctx, GRect(px, py, pw, ph), 6, GCornersAll);
+#if !defined(PBL_COLOR)
+    graphics_context_set_stroke_color(ctx, GColorWhite);
+    graphics_draw_round_rect(ctx, GRect(px, py, pw, ph), 6);
 #endif
     graphics_context_set_text_color(ctx, GColorWhite);
     graphics_draw_text(ctx, tstr, pill_font, GRect(px, py + 1, pw, 16),
@@ -699,7 +736,14 @@ static void prv_anim_update(Animation *a, AnimationProgress prog) {
   layer_mark_dirty(s_graph_layer);
 }
 
-static const AnimationImplementation s_anim_impl = { .update = prv_anim_update };
+static void prv_anim_teardown(Animation *a) {
+  s_pan_active = false;          // settled: redraw at full water quality
+  layer_mark_dirty(s_graph_layer);
+}
+
+static const AnimationImplementation s_anim_impl = {
+  .update = prv_anim_update, .teardown = prv_anim_teardown
+};
 
 // Pan the window center toward target_epoch. A press mid-pan cancels and
 // retargets from the current interpolated center (no queueing).
@@ -715,6 +759,7 @@ static void prv_pan_to(int32_t target_epoch) {
   animation_set_implementation(s_pan_anim, &s_anim_impl);
   animation_set_duration(s_pan_anim, 250);
   animation_set_curve(s_pan_anim, AnimationCurveEaseInOut);
+  s_pan_active = true;
   animation_schedule(s_pan_anim);
 }
 
