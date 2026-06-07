@@ -532,50 +532,12 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   }
 
   // Smoothed curve line.
-  graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorDukeBlue, GColorBlack));
+  graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorElectricBlue, GColorWhite));
   graphics_context_set_stroke_width(ctx, 4);
   for (int i = 0; i < dn - 1; i++) {
     graphics_draw_line(ctx, GPoint(s_dx[i], s_dy[i]), GPoint(s_dx[i + 1], s_dy[i + 1]));
   }
   graphics_context_set_stroke_width(ctx, 1);
-
-  // Markers: black centre, tide-coloured ring. Labels are coloured pills
-  // (HIGH = tide blue, LOW = pink) with white time + height. (Dark-theme
-  // experiment.)
-  GFont pill_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
-  for (int i = 0; i < n; i++) {
-    if (s_sk[i] == 0) { continue; }
-    bool high = s_sk[i] == 1;
-    GPoint p = GPoint(s_sx[i], s_sy[i]);
-    graphics_context_set_fill_color(ctx, GColorBlack);
-    graphics_fill_circle(ctx, p, 5);
-    graphics_context_set_stroke_color(ctx, TIDE_COLOR);
-    graphics_context_set_stroke_width(ctx, 2);
-    graphics_draw_circle(ctx, p, 5);
-    graphics_context_set_stroke_width(ctx, 1);
-
-    int edge = PBL_IF_ROUND_ELSE(32, 6);
-    if (s_sx[i] < edge || s_sx[i] > b.size.w - edge) { continue; }
-
-    time_t pt = (time_t)(t0 + (long)(s_sx[i] - x0) * WINDOW_SECONDS / plot_w);
-    struct tm *lt = localtime(&pt);
-    char tstr[12], hstr[12];
-    strftime(tstr, sizeof(tstr), prv_time_fmt(), lt);
-    prv_format_height(s_sh[i], hstr, sizeof(hstr));
-
-    int pw = 72, ph = 36;
-    int px = s_sx[i] - pw / 2;
-    if (px < 0) { px = 0; }
-    if (px + pw > b.size.w) { px = b.size.w - pw; }
-    int py = high ? s_sy[i] - ph - 8 : s_sy[i] + 8;
-    graphics_context_set_fill_color(ctx, high ? TIDE_COLOR : GColorFolly);
-    graphics_fill_rect(ctx, GRect(px, py, pw, ph), 6, GCornersAll);
-    graphics_context_set_text_color(ctx, GColorWhite);
-    graphics_draw_text(ctx, tstr, pill_font, GRect(px, py + 1, pw, 16),
-                       GTextOverflowModeFill, GTextAlignmentCenter, NULL);
-    graphics_draw_text(ctx, hstr, pill_font, GRect(px, py + 18, pw, 16),
-                       GTextOverflowModeFill, GTextAlignmentCenter, NULL);
-  }
 
   // Mid-tide ticks: subordinate to the high/low markers. A short vertical tick
   // sits on the curve at each 50% crossing; the small time label appears only
@@ -638,6 +600,45 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     graphics_draw_text(ctx, hstr, fonts_get_system_font(FONT_KEY_GOTHIC_14),
                        GRect(hx, y_top + 1, hw, 18), GTextOverflowModeFill,
                        left_side ? GTextAlignmentRight : GTextAlignmentLeft, NULL);
+  }
+
+  // Markers + pill labels drawn LAST so they sit above the now-line and curve.
+  // Markers: black centre, tide-coloured ring. Labels are coloured pills
+  // (HIGH = tide blue, LOW = pink) with white time + height. (Dark-theme
+  // experiment.)
+  GFont pill_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+  for (int i = 0; i < n; i++) {
+    if (s_sk[i] == 0) { continue; }
+    bool high = s_sk[i] == 1;
+    GPoint p = GPoint(s_sx[i], s_sy[i]);
+    graphics_context_set_fill_color(ctx, GColorBlack);
+    graphics_fill_circle(ctx, p, 5);
+    graphics_context_set_stroke_color(ctx, TIDE_COLOR);
+    graphics_context_set_stroke_width(ctx, 2);
+    graphics_draw_circle(ctx, p, 5);
+    graphics_context_set_stroke_width(ctx, 1);
+
+    int edge = PBL_IF_ROUND_ELSE(32, 6);
+    if (s_sx[i] < edge || s_sx[i] > b.size.w - edge) { continue; }
+
+    time_t pt = (time_t)(t0 + (long)(s_sx[i] - x0) * WINDOW_SECONDS / plot_w);
+    struct tm *lt = localtime(&pt);
+    char tstr[12], hstr[12];
+    strftime(tstr, sizeof(tstr), prv_time_fmt(), lt);
+    prv_format_height(s_sh[i], hstr, sizeof(hstr));
+
+    int pw = 72, ph = 36;
+    int px = s_sx[i] - pw / 2;
+    if (px < 0) { px = 0; }
+    if (px + pw > b.size.w) { px = b.size.w - pw; }
+    int py = high ? s_sy[i] - ph - 8 : s_sy[i] + 8;
+    graphics_context_set_fill_color(ctx, high ? TIDE_COLOR : GColorFolly);
+    graphics_fill_rect(ctx, GRect(px, py, pw, ph), 6, GCornersAll);
+    graphics_context_set_text_color(ctx, GColorWhite);
+    graphics_draw_text(ctx, tstr, pill_font, GRect(px, py + 1, pw, 16),
+                       GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+    graphics_draw_text(ctx, hstr, pill_font, GRect(px, py + 18, pw, 16),
+                       GTextOverflowModeFill, GTextAlignmentCenter, NULL);
   }
 }
 
