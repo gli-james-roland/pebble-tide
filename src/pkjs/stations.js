@@ -1,378 +1,293 @@
-[
+'use strict';
+
+// Hand-trimmed subset of DFO IWLS stations (see CONTEXT.md: Station List).
+// Generated from the original tide_stations.json. `operating` is the DFO flag.
+module.exports = [
   {
     "id": "603023f41113077897271273",
-    "code": "09339",
     "officialName": "Pembina Terminal",
     "operating": true,
     "latitude": 54.236287,
-    "longitude": -130.303479,
-    "type": "TEMPORARY"
+    "longitude": -130.303479
   },
   {
     "id": "5cebf1de3d0f4a073c4bb91e",
-    "code": "09130",
     "officialName": "Hartley Bay",
     "operating": true,
     "latitude": 53.424213,
-    "longitude": -129.251877,
-    "type": "PERMANENT"
+    "longitude": -129.251877
   },
   {
     "id": "5cebf1e23d0f4a073c4bc0b7",
-    "code": "08937",
     "officialName": "Bella Coola",
     "operating": false,
     "latitude": 52.374,
-    "longitude": -126.796,
-    "type": "TEMPORARY"
+    "longitude": -126.796
   },
   {
     "id": "5cebf1e43d0f4a073c4bc45a",
-    "code": "07780",
     "officialName": "Ambleside",
     "operating": true,
     "latitude": 49.32577,
-    "longitude": -123.15458,
-    "type": "PERMANENT"
+    "longitude": -123.15458
   },
   {
     "id": "5cebf1e43d0f4a073c4bc404",
-    "code": "07707",
     "officialName": "Kitsilano",
     "operating": true,
     "latitude": 49.276583,
-    "longitude": -123.13936,
-    "type": "PERMANENT"
+    "longitude": -123.13936
   },
   {
     "id": "5cebf1e23d0f4a073c4bc060",
-    "code": "08525",
     "officialName": "Port Renfrew",
     "operating": true,
     "latitude": 48.555,
-    "longitude": -124.421,
-    "type": "PERMANENT"
+    "longitude": -124.421
   },
   {
     "id": "5cebf1e23d0f4a073c4bc062",
-    "code": "08545",
     "officialName": "Bamfield",
     "operating": true,
     "latitude": 48.836,
-    "longitude": -125.136,
-    "type": "PERMANENT"
+    "longitude": -125.136
   },
   {
     "id": "5cebf1de3d0f4a073c4bba06",
-    "code": "09354",
     "officialName": "Prince Rupert",
     "operating": true,
     "latitude": 54.317,
-    "longitude": -130.324,
-    "type": "PERMANENT"
+    "longitude": -130.324
   },
   {
     "id": "5cebf1e23d0f4a073c4bc06f",
-    "code": "08575",
     "officialName": "Port Alberni",
     "operating": true,
     "latitude": 49.225621,
-    "longitude": -124.813613,
-    "type": "PERMANENT"
+    "longitude": -124.813613
   },
   {
     "id": "5cebf1e13d0f4a073c4bbf8c",
-    "code": "07607",
     "officialName": "Steveston",
     "operating": true,
     "latitude": 49.1245,
-    "longitude": -123.1922,
-    "type": "PERMANENT"
+    "longitude": -123.1922
   },
   {
     "id": "5cebf1df3d0f4a073c4bbd1e",
-    "code": "07120",
     "officialName": "Victoria Harbour",
     "operating": true,
     "latitude": 48.424666,
-    "longitude": -123.3707,
-    "type": "PERMANENT"
+    "longitude": -123.3707
   },
   {
     "id": "5cebf1de3d0f4a073c4bba3e",
-    "code": "09850",
     "officialName": "Daajing Giids",
-    "alternativeName": "Queen Charlotte City",
     "operating": true,
     "latitude": 53.252,
-    "longitude": -132.072,
-    "type": "PERMANENT"
+    "longitude": -132.072
   },
   {
     "id": "5cebf1e23d0f4a073c4bc075",
-    "code": "08595",
     "officialName": "Ucluelet",
     "operating": true,
     "latitude": 48.947,
-    "longitude": -125.552,
-    "type": "TEMPORARY"
+    "longitude": -125.552
   },
   {
     "id": "5cebf1de3d0f4a073c4bb925",
-    "code": "09140",
     "officialName": "Kitimat",
     "operating": true,
     "latitude": 53.989,
-    "longitude": -128.696,
-    "type": "PERMANENT"
+    "longitude": -128.696
   },
   {
     "id": "5cebf1de3d0f4a073c4bb996",
-    "code": "08074",
     "officialName": "Campbell River",
     "operating": true,
     "latitude": 50.042,
-    "longitude": -125.247,
-    "type": "PERMANENT"
+    "longitude": -125.247
   },
   {
     "id": "5cebf1e43d0f4a073c4bc447",
-    "code": "09338",
     "officialName": "Aero Trading",
-    "alternativeName": "Aero Trading",
     "operating": false,
     "latitude": 54.212997,
-    "longitude": -130.288383,
-    "type": "TEMPORARY"
+    "longitude": -130.288383
   },
   {
     "id": "5cebf1de3d0f4a073c4bb943",
-    "code": "07735",
     "officialName": "Vancouver",
     "operating": true,
     "latitude": 49.2863,
-    "longitude": -123.0997,
-    "type": "PERMANENT"
+    "longitude": -123.0997
   },
   {
     "id": "5cebf1de3d0f4a073c4bba0c",
-    "code": "09422",
     "officialName": "Gingolx",
-    "alternativeName": "Kincolith",
     "operating": true,
     "latitude": 54.999,
-    "longitude": -129.978,
-    "type": "TEMPORARY"
+    "longitude": -129.978
   },
   {
     "id": "5cebf1e43d0f4a073c4bc40e",
-    "code": "07808",
     "officialName": "Darrell Bay",
     "operating": true,
     "latitude": 49.669,
-    "longitude": -123.169,
-    "type": "PERMANENT"
+    "longitude": -123.169
   },
   {
     "id": "5cebf1de3d0f4a073c4bb9c7",
-    "code": "08408",
     "officialName": "Port Hardy",
     "operating": true,
     "latitude": 50.722,
-    "longitude": -127.489,
-    "type": "PERMANENT"
+    "longitude": -127.489
   },
   {
     "id": "5cebf1df3d0f4a073c4bbd2d",
-    "code": "07277",
     "officialName": "Patricia Bay",
     "operating": true,
     "latitude": 48.6536,
-    "longitude": -123.4515,
-    "type": "PERMANENT"
+    "longitude": -123.4515
   },
   {
     "id": "5cebf1e43d0f4a073c4bc44d",
-    "code": "09341",
     "officialName": "Porpoise Channel East",
     "operating": true,
     "latitude": 54.21515,
-    "longitude": -130.28906,
-    "type": "TEMPORARY"
+    "longitude": -130.28906
   },
   {
     "id": "5cebf1e43d0f4a073c4bc43b",
-    "code": "07786",
     "officialName": "Sandy Cove",
-    "alternativeName": "West Vancouver Laboratories, Ettershank Cove",
     "operating": true,
     "latitude": 49.3405,
-    "longitude": -123.2319,
-    "type": "PERMANENT"
+    "longitude": -123.2319
   },
   {
     "id": "5cebf1e23d0f4a073c4bc0c2",
-    "code": "08976",
     "officialName": "Bella Bella",
     "operating": true,
     "latitude": 52.163,
-    "longitude": -128.143,
-    "type": "PERMANENT"
+    "longitude": -128.143
   },
   {
     "id": "5cebf1de3d0f4a073c4bb93c",
-    "code": "07594",
     "officialName": "Sand Heads",
     "operating": true,
     "latitude": 49.1052,
-    "longitude": -123.3042,
-    "type": "PERMANENT"
+    "longitude": -123.3042
   },
   {
     "id": "5cebf1e23d0f4a073c4bc097",
-    "code": "08735",
     "officialName": "Winter Harbour",
     "operating": true,
     "latitude": 50.513,
-    "longitude": -128.029,
-    "type": "PERMANENT"
+    "longitude": -128.029
   },
   {
     "id": "5cebf1df3d0f4a073c4bbd26",
-    "code": "07260",
     "officialName": "Sidney",
     "operating": true,
     "latitude": 48.649216,
-    "longitude": -123.3929,
-    "type": "PERMANENT"
+    "longitude": -123.3929
   },
   {
     "id": "5dd30650e0fdc4b9b4be6dc4",
-    "code": "09348",
     "officialName": "Fairview Terminal",
     "operating": true,
     "latitude": 54.290263,
-    "longitude": -130.359937,
-    "type": "TEMPORARY"
+    "longitude": -130.359937
   },
   {
     "id": "5dd30650e0fdc4b9b4be6dfe",
-    "code": "08863",
     "officialName": "Pruth Bay",
     "operating": true,
     "latitude": 51.654504,
-    "longitude": -128.129455,
-    "type": "TEMPORARY"
+    "longitude": -128.129455
   },
   {
     "id": "5cebf1de3d0f4a073c4bba2d",
-    "code": "09713",
     "officialName": "Rose Harbour",
     "operating": true,
     "latitude": 52.1552,
-    "longitude": -131.0909,
-    "type": "PERMANENT"
+    "longitude": -131.0909
   },
   {
     "id": "5cebf1e43d0f4a073c4bc469",
-    "code": "09346",
     "officialName": "Prince Rupert RoRo",
     "operating": true,
     "latitude": 54.234885,
-    "longitude": -130.335097,
-    "type": "PERMANENT"
+    "longitude": -130.335097
   },
   {
     "id": "5cebf1e43d0f4a073c4bc42d",
-    "code": "07610",
     "officialName": "Woodward's Landing",
     "operating": true,
     "latitude": 49.1251,
-    "longitude": -123.0754,
-    "type": "TEMPORARY"
+    "longitude": -123.0754
   },
   {
     "id": "5cebf1e43d0f4a073c4bc453",
-    "code": "09360",
     "officialName": "Seal Cove",
     "operating": false,
     "latitude": 54.3311,
-    "longitude": -130.2796,
-    "type": "TEMPORARY"
+    "longitude": -130.2796
   },
   {
     "id": "5cebf1de3d0f4a073c4bb96d",
-    "code": "07917",
     "officialName": "Nanaimo Harbour",
-    "alternativeName": "Port of Nanaimo",
     "operating": true,
     "latitude": 49.1628,
-    "longitude": -123.9235,
-    "type": "PERMANENT"
+    "longitude": -123.9235
   },
   {
     "id": "5cebf1de3d0f4a073c4bb94a",
-    "code": "07755",
     "officialName": "Port Moody",
     "operating": true,
     "latitude": 49.2877,
-    "longitude": -122.86583,
-    "type": "PERMANENT"
+    "longitude": -122.86583
   },
   {
     "id": "5dd3064ee0fdc4b9b4be6717",
-    "code": "07774",
     "officialName": "Indian Arm Head",
     "operating": true,
     "latitude": 49.4618,
-    "longitude": -122.8861,
-    "type": "TEMPORARY"
+    "longitude": -122.8861
   },
   {
     "id": "5cebf1e23d0f4a073c4bc07c",
-    "code": "08615",
     "officialName": "Tofino",
-    "alternativeName": "Clayoquot , CLAYOQUOT ",
     "operating": true,
     "latitude": 49.154,
-    "longitude": -125.913,
-    "type": "PERMANENT"
+    "longitude": -125.913
   },
   {
     "id": "5cebf1e13d0f4a073c4bbf93",
-    "code": "07654",
     "officialName": "New Westminster",
     "operating": true,
     "latitude": 49.2,
-    "longitude": -122.91,
-    "type": "PERMANENT"
+    "longitude": -122.91
   },
   {
     "id": "5cebf1e43d0f4a073c4bc434",
-    "code": "07724",
     "officialName": "Calamity Point",
     "operating": true,
     "latitude": 49.31257,
-    "longitude": -123.127678,
-    "type": "PERMANENT"
+    "longitude": -123.127678
   },
   {
     "id": "5cebf1de3d0f4a073c4bba44",
-    "code": "09910",
     "officialName": "Masset",
     "operating": true,
     "latitude": 54.01,
-    "longitude": -132.149,
-    "type": "TEMPORARY"
+    "longitude": -132.149
   },
   {
     "id": "5cebf1de3d0f4a073c4bb94c",
-    "code": "07795",
     "officialName": "Point Atkinson",
-    "alternativeName": "Caulfeild Cove",
     "operating": true,
     "latitude": 49.3375,
-    "longitude": -123.253583,
-    "type": "PERMANENT"
+    "longitude": -123.253583
   }
-]
+];

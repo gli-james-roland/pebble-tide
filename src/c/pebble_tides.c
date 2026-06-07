@@ -8,27 +8,41 @@
 #define PERSIST_TYPE 3
 #define PERSIST_HEIGHT_CM 4
 #define PERSIST_STATION 5
+#define PERSIST_DISTANCE_KM 6
+
+#define FAR_WARNING_KM 500
 
 static Window *s_window;
 static TextLayer *s_station_layer;
 static TextLayer *s_headline_layer;
 static TextLayer *s_height_layer;
+static TextLayer *s_warn_layer;
 
 static bool s_has_data = false;
 static int s_tide_epoch = 0;
 static int s_tide_type = 0; // 1 = HIGH, 0 = LOW
 static int s_tide_height_cm = 0;
+static int s_distance_km = 0;
 static char s_station_name[64] = "";
 
 static char s_headline_text[32];
 static char s_height_text[16];
+static char s_warn_text[28];
 
 static void prv_update_display(void) {
   if (!s_has_data) {
     text_layer_set_text(s_station_layer, "");
     text_layer_set_text(s_headline_layer, "Loading…");
     text_layer_set_text(s_height_layer, "");
+    text_layer_set_text(s_warn_layer, "");
     return;
+  }
+
+  if (s_distance_km > FAR_WARNING_KM) {
+    snprintf(s_warn_text, sizeof(s_warn_text), "Nearest %d km away", s_distance_km);
+    text_layer_set_text(s_warn_layer, s_warn_text);
+  } else {
+    text_layer_set_text(s_warn_layer, "");
   }
 
   time_t t = (time_t)s_tide_epoch;
@@ -55,6 +69,7 @@ static void prv_load_persisted(void) {
   s_tide_epoch = persist_read_int(PERSIST_EPOCH);
   s_tide_type = persist_read_int(PERSIST_TYPE);
   s_tide_height_cm = persist_read_int(PERSIST_HEIGHT_CM);
+  s_distance_km = persist_exists(PERSIST_DISTANCE_KM) ? persist_read_int(PERSIST_DISTANCE_KM) : 0;
   if (persist_exists(PERSIST_STATION)) {
     persist_read_string(PERSIST_STATION, s_station_name, sizeof(s_station_name));
   }
@@ -65,6 +80,7 @@ static void prv_persist_current(void) {
   persist_write_int(PERSIST_EPOCH, s_tide_epoch);
   persist_write_int(PERSIST_TYPE, s_tide_type);
   persist_write_int(PERSIST_HEIGHT_CM, s_tide_height_cm);
+  persist_write_int(PERSIST_DISTANCE_KM, s_distance_km);
   persist_write_string(PERSIST_STATION, s_station_name);
 }
 
@@ -73,6 +89,7 @@ static void prv_inbox_received(DictionaryIterator *iter, void *context) {
   Tuple *type_t = dict_find(iter, MESSAGE_KEY_NEXT_TIDE_TYPE);
   Tuple *height_t = dict_find(iter, MESSAGE_KEY_NEXT_TIDE_HEIGHT_CM);
   Tuple *station_t = dict_find(iter, MESSAGE_KEY_STATION_NAME);
+  Tuple *distance_t = dict_find(iter, MESSAGE_KEY_STATION_DISTANCE_KM);
 
   if (!epoch_t || !type_t || !height_t) {
     APP_LOG(APP_LOG_LEVEL_WARNING, "Incomplete tide message");
@@ -82,6 +99,9 @@ static void prv_inbox_received(DictionaryIterator *iter, void *context) {
   s_tide_epoch = epoch_t->value->int32;
   s_tide_type = type_t->value->int32;
   s_tide_height_cm = height_t->value->int32;
+  if (distance_t) {
+    s_distance_km = distance_t->value->int32;
+  }
   if (station_t) {
     strncpy(s_station_name, station_t->value->cstring, sizeof(s_station_name) - 1);
     s_station_name[sizeof(s_station_name) - 1] = '\0';
@@ -112,6 +132,11 @@ static void prv_window_load(Window *window) {
   text_layer_set_font(s_height_layer, fonts_get_system_font(FONT_KEY_GOTHIC_24));
   layer_add_child(root, text_layer_get_layer(s_height_layer));
 
+  s_warn_layer = text_layer_create(GRect(0, bounds.size.h - 26, bounds.size.w, 20));
+  text_layer_set_text_alignment(s_warn_layer, GTextAlignmentCenter);
+  text_layer_set_font(s_warn_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
+  layer_add_child(root, text_layer_get_layer(s_warn_layer));
+
   prv_update_display();
 }
 
@@ -119,6 +144,7 @@ static void prv_window_unload(Window *window) {
   text_layer_destroy(s_station_layer);
   text_layer_destroy(s_headline_layer);
   text_layer_destroy(s_height_layer);
+  text_layer_destroy(s_warn_layer);
 }
 
 static void prv_init(void) {

@@ -26,7 +26,8 @@
       "NEXT_TIDE_EPOCH",
       "NEXT_TIDE_TYPE",
       "NEXT_TIDE_HEIGHT_CM",
-      "STATION_NAME"
+      "STATION_NAME",
+      "STATION_DISTANCE_KM"
     ],
     "resources": {
       "media": []
