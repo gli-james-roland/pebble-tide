@@ -59,6 +59,12 @@ static int16_t s_sx[MAX_WIN_POINTS], s_sy[MAX_WIN_POINTS];
 static uint8_t s_sk[MAX_WIN_POINTS];
 static int16_t s_dx[MAX_DENSE], s_dy[MAX_DENSE];
 
+// Mid-tide scratch: at most one crossing on each side of the Focused Tide.
+static int32_t s_mid_epoch[2];
+static int s_mid_cm[2];
+static int s_mid_ext_x[2];   // screen x of the adjacent extremum (label-collision guard)
+static int s_mid_count = 0;
+
 // Navigation + curve-pan animation state
 static int s_focus_idx = -1;        // index into points of the Focused Tide
 static int32_t s_center_epoch = 0;  // animated window-center time
@@ -230,6 +236,8 @@ static void prv_update_chrome(void) {
 // Graph rendering
 // ---------------------------------------------------------------------------
 
+static int prv_step_extremum(int from, int dir); // defined with navigation
+
 static int prv_map_y(int height_cm, int y_top, int y_bottom, int lo, int hi) {
   if (hi <= lo) { return y_bottom; }
   int span = hi - lo;
@@ -255,6 +263,20 @@ static int prv_level_cm_at(int32_t e) {
     }
   }
   return s_point_count > 0 ? s_pt_height[0] : 0;
+}
+
+// Find where the piecewise-linear curve between cached points [a..b] crosses
+// level_cm. Returns the crossing epoch (or 0 if none in range). a < b assumed.
+static int32_t prv_cross_epoch(int a, int b, int level_cm) {
+  for (int i = a; i < b; i++) {
+    int h0 = s_pt_height[i], h1 = s_pt_height[i + 1];
+    int lo = h0 < h1 ? h0 : h1, hi = h0 < h1 ? h1 : h0;
+    if (level_cm < lo || level_cm > hi) { continue; }
+    if (h1 == h0) { return s_pt_epoch[i]; }
+    int32_t span = s_pt_epoch[i + 1] - s_pt_epoch[i];
+    return s_pt_epoch[i] + (int32_t)((long)(level_cm - h0) * span / (h1 - h0));
+  }
+  return 0;
 }
 
 static bool prv_rising_at(int32_t e) {
@@ -287,6 +309,31 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   int pad = (s_max_cm - s_min_cm) / 10;
   if (pad < 15) { pad = 15; }
   int lo = s_min_cm - pad, hi = s_max_cm + pad;
+
+  // Mid-tides: 50% crossings between the Focused Tide and each adjacent
+  // extremum. Computed in data space here; drawn as subordinate ticks below.
+  s_mid_count = 0;
+  int focus_x = x0 + (int)((long)(s_pt_epoch[s_focus_idx] - t0) * plot_w / WINDOW_SECONDS);
+  if (s_pt_kind[s_focus_idx] != 0) {
+    int prev_ext = prv_step_extremum(s_focus_idx, -1);
+    int next_ext = prv_step_extremum(s_focus_idx, +1);
+    int adj[2] = { prev_ext, next_ext };
+    for (int k = 0; k < 2 && s_mid_count < 2; k++) {
+      int j = adj[k];
+      if (j < 0) { continue; }
+      int a = j < s_focus_idx ? j : s_focus_idx;
+      int b = j < s_focus_idx ? s_focus_idx : j;
+      int mid_cm = (s_pt_height[s_focus_idx] + s_pt_height[j]) / 2;
+      int32_t ce = prv_cross_epoch(a, b, mid_cm);
+      if (ce == 0) { continue; }
+      if (ce < (int32_t)t0 || ce > (int32_t)t1) { continue; }
+      s_mid_epoch[s_mid_count] = ce;
+      s_mid_cm[s_mid_count] = mid_cm;
+      s_mid_ext_x[s_mid_count] =
+          x0 + (int)((long)(s_pt_epoch[j] - t0) * plot_w / WINDOW_SECONDS);
+      s_mid_count++;
+    }
+  }
 
   // Project points in (and just past) the window to screen space.
   int n = 0;
@@ -383,6 +430,37 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     int ly = high ? s_sy[i] - 30 : s_sy[i] + 9;
     graphics_context_set_text_color(ctx, GColorBlack);
     graphics_draw_text(ctx, lbl, font, GRect(lx, ly, lw, 22),
+                       GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+  }
+
+  // Mid-tide ticks: subordinate to the high/low markers. A short vertical tick
+  // sits on the curve at each 50% crossing; the small time label appears only
+  // when it clears the neighbouring extremum labels and the clipped edge zone.
+  GFont mid_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+  for (int i = 0; i < s_mid_count; i++) {
+    int mx = x0 + (int)((long)(s_mid_epoch[i] - t0) * plot_w / WINDOW_SECONDS);
+    int my = prv_map_y(s_mid_cm[i], y_top, y_bottom, lo, hi);
+
+    graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorDarkGray, GColorBlack));
+    graphics_context_set_stroke_width(ctx, 1);
+    graphics_draw_line(ctx, GPoint(mx, my - 3), GPoint(mx, my + 3));
+
+    // Suppress the label near either neighbouring extremum or in the edge zone.
+    int edge = PBL_IF_ROUND_ELSE(32, 6);
+    if (mx < edge || mx > b.size.w - edge) { continue; }
+    int df = mx - focus_x; if (df < 0) { df = -df; }
+    int de = mx - s_mid_ext_x[i]; if (de < 0) { de = -de; }
+    if (df < 44 || de < 44) { continue; }
+
+    time_t mt = (time_t)s_mid_epoch[i];
+    struct tm *mlt = localtime(&mt);
+    char mlbl[12];
+    strftime(mlbl, sizeof(mlbl), "%l:%M %p", mlt);
+    int mw = 64, mlx = mx - mw / 2;
+    if (mlx < 0) { mlx = 0; }
+    if (mlx + mw > b.size.w) { mlx = b.size.w - mw; }
+    graphics_context_set_text_color(ctx, PBL_IF_COLOR_ELSE(GColorDarkGray, GColorBlack));
+    graphics_draw_text(ctx, mlbl, mid_font, GRect(mlx, my - 20, mw, 16),
                        GTextOverflowModeFill, GTextAlignmentCenter, NULL);
   }
 
