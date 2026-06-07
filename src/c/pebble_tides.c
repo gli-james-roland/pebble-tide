@@ -285,20 +285,7 @@ static void prv_update_chrome(void) {
   snprintf(s_title_text, sizeof(s_title_text), "%s %s", s_pt_kind[f] == 1 ? "HIGH" : "LOW", tstr);
   text_layer_set_text(s_title_layer, s_title_text);
 
-  char dstr[12];
-  strftime(dstr, sizeof(dstr), "%a %b %e", lt);
-  int32_t d = s_pt_epoch[f] - (int32_t)time(NULL);
-  char cd[16];
-  if (d >= 0) {
-    int h = d / 3600, m = (d % 3600) / 60;
-    if (h > 0) { snprintf(cd, sizeof(cd), "in %dh %02dm", h, m); }
-    else { snprintf(cd, sizeof(cd), "in %dm", m); }
-  } else {
-    int32_t ad = -d; int h = ad / 3600, m = (ad % 3600) / 60;
-    if (h > 0) { snprintf(cd, sizeof(cd), "%dh %02dm ago", h, m); }
-    else { snprintf(cd, sizeof(cd), "%dm ago", m); }
-  }
-  snprintf(s_sub_text, sizeof(s_sub_text), "%s · %s", dstr, cd);
+  strftime(s_sub_text, sizeof(s_sub_text), "%a %b %e", lt);
   text_layer_set_text(s_sub_layer, s_sub_text);
 
   text_layer_set_text(s_station_layer, s_station_name);
@@ -601,25 +588,25 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     int mx = x0 + (int)((long)(s_mid_epoch[i] - t0) * plot_w / WINDOW_SECONDS);
     int my = prv_map_y(s_mid_cm[i], y_top, y_bottom, lo, hi);
 
-    graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorDarkGray, GColorBlack));
+    graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite));
     graphics_context_set_stroke_width(ctx, 1);
-    graphics_draw_line(ctx, GPoint(mx, my - 3), GPoint(mx, my + 3));
+    graphics_draw_circle(ctx, GPoint(mx, my), 2);
 
     // Suppress the label near either neighbouring extremum or in the edge zone.
     int edge = PBL_IF_ROUND_ELSE(32, 6);
     if (mx < edge || mx > b.size.w - edge) { continue; }
     int df = mx - focus_x; if (df < 0) { df = -df; }
     int de = mx - s_mid_ext_x[i]; if (de < 0) { de = -de; }
-    if (df < 44 || de < 44) { continue; }
+    if (df < 18 || de < 18) { continue; }
 
     time_t mt = (time_t)s_mid_epoch[i];
     struct tm *mlt = localtime(&mt);
     char mlbl[12];
-    strftime(mlbl, sizeof(mlbl), "%l:%M %p", mlt);
+    strftime(mlbl, sizeof(mlbl), prv_time_fmt(), mlt);
     int mw = 64, mlx = mx - mw / 2;
     if (mlx < 0) { mlx = 0; }
     if (mlx + mw > b.size.w) { mlx = b.size.w - mw; }
-    graphics_context_set_text_color(ctx, PBL_IF_COLOR_ELSE(GColorDarkGray, GColorBlack));
+    graphics_context_set_text_color(ctx, PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite));
     graphics_draw_text(ctx, mlbl, mid_font, GRect(mlx, my - 20, mw, 16),
                        GTextOverflowModeFill, GTextAlignmentCenter, NULL);
   }
