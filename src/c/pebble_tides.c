@@ -267,7 +267,7 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
 
   // Smoothed curve line.
   graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorDukeBlue, GColorBlack));
-  graphics_context_set_stroke_width(ctx, 3);
+  graphics_context_set_stroke_width(ctx, 4);
   for (int i = 0; i < dn - 1; i++) {
     graphics_draw_line(ctx, GPoint(s_dx[i], s_dy[i]), GPoint(s_dx[i + 1], s_dy[i + 1]));
   }
@@ -281,7 +281,7 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     bool high = s_sk[i] == 1;
     GPoint p = GPoint(s_sx[i], s_sy[i]);
     graphics_context_set_fill_color(ctx, high
-        ? PBL_IF_COLOR_ELSE(GColorDukeBlue, GColorBlack)
+        ? PBL_IF_COLOR_ELSE(GColorPictonBlue, GColorWhite)
         : PBL_IF_COLOR_ELSE(GColorMintGreen, GColorWhite));
     graphics_fill_circle(ctx, p, 5);
     graphics_context_set_stroke_color(ctx, GColorBlack);
@@ -289,18 +289,23 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     graphics_draw_circle(ctx, p, 5);
     graphics_context_set_stroke_width(ctx, 1);
 
+    // Skip labels for markers in the clipped edge zone (round corners); the
+    // dot still shows on the curve, but its label would be cut by the bezel.
+    int edge = PBL_IF_ROUND_ELSE(32, 6);
+    if (s_sx[i] < edge || s_sx[i] > b.size.w - edge) { continue; }
+
     time_t pt = (time_t)(t0 + (long)(s_sx[i] - x0) * WINDOW_SECONDS / plot_w);
     struct tm *lt = localtime(&pt);
-    char lbl[8];
-    strftime(lbl, sizeof(lbl), clock_is_24h_style() ? "%H:%M" : "%l:%M", lt);
+    char lbl[12];
+    strftime(lbl, sizeof(lbl), "%l:%M %p", lt); // 12-hour with AM/PM
 
-    int lw = 52;
+    int lw = 80;
     int lx = s_sx[i] - lw / 2;
     if (lx < 0) { lx = 0; }
     if (lx + lw > b.size.w) { lx = b.size.w - lw; }
     int ly = high ? s_sy[i] - 30 : s_sy[i] + 9;
     graphics_context_set_text_color(ctx, GColorBlack);
-    graphics_draw_text(ctx, lbl, font, GRect(lx, ly, lw, 20),
+    graphics_draw_text(ctx, lbl, font, GRect(lx, ly, lw, 22),
                        GTextOverflowModeFill, GTextAlignmentCenter, NULL);
   }
 }
