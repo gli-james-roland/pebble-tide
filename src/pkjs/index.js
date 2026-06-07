@@ -26,12 +26,32 @@ function todayStr() {
   return d.getFullYear() + '-' + m + '-' + day;
 }
 
-function hiloUrl(stationId, fromDate, toDate) {
+function seriesUrl(stationId, code, resolution, fromDate, toDate) {
   return IWLS_HOST + '/api/v1/stations/' + stationId +
-    '/data?time-series-code=wlp-hilo' +
+    '/data?time-series-code=' + code +
     '&from=' + isoZ(fromDate) +
     '&to=' + isoZ(toDate) +
-    '&resolution=ALL';
+    '&resolution=' + resolution;
+}
+
+function fetchJson(url, cb) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', url, true);
+  xhr.timeout = 20000;
+  xhr.onload = function () {
+    if (xhr.status < 200 || xhr.status >= 300) {
+      cb('status ' + xhr.status, null);
+      return;
+    }
+    try {
+      cb(null, JSON.parse(xhr.responseText));
+    } catch (err) {
+      cb('parse: ' + err, null);
+    }
+  };
+  xhr.onerror = function () { cb('network error', null); };
+  xhr.ontimeout = function () { cb('timeout', null); };
+  xhr.send();
 }
 
 function readJson(key) {
@@ -74,36 +94,30 @@ function sendBlob(u8, stationId, onDone) {
 function fetchWeek(station, distanceKm) {
   var now = new Date();
   var to = new Date(now.getTime() + WEEK_DAYS * 24 * 60 * 60 * 1000);
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', hiloUrl(station.id, now, to), true);
-  xhr.timeout = 20000;
-  xhr.onload = function () {
-    if (xhr.status < 200 || xhr.status >= 300) {
-      console.log('IWLS status ' + xhr.status + '; keeping existing cache');
+  var hiloUrl = seriesUrl(station.id, 'wlp-hilo', 'ALL', now, to);
+  var curveUrl = seriesUrl(station.id, 'wlp', 'SIXTY_MINUTES', now, to);
+
+  fetchJson(hiloUrl, function (e1, hilo) {
+    if (e1 || !Array.isArray(hilo) || hilo.length === 0) {
+      console.log('hilo fetch failed (' + e1 + '); keeping cache');
       return;
     }
-    try {
-      var data = JSON.parse(xhr.responseText);
-      if (!Array.isArray(data) || data.length === 0) {
-        console.log('IWLS returned no extrema; keeping existing cache');
+    fetchJson(curveUrl, function (e2, curve) {
+      if (e2 || !Array.isArray(curve) || curve.length === 0) {
+        console.log('curve fetch failed (' + e2 + '); keeping cache');
         return;
       }
-      var classified = tides.classifyExtrema(data);
-      var u8 = blob.packWeek(classified, station, distanceKm);
+      var points = tides.mergePoints(tides.toCurvePoints(curve), tides.classifyExtrema(hilo));
+      var u8 = blob.packWeek(points, station, distanceKm);
       sendBlob(u8, station.id, function () {
-        writeJson(META_KEY, { date: todayStr(), stationId: station.id });
+        writeJson(META_KEY, { date: todayStr(), stationId: station.id, version: blob.BLOB_VERSION });
       });
-    } catch (err) {
-      console.log('Failed to handle IWLS response: ' + err);
-    }
-  };
-  xhr.onerror = function () { console.log('IWLS errored; keeping existing cache'); };
-  xhr.ontimeout = function () { console.log('IWLS timed out; keeping existing cache'); };
-  xhr.send();
+    });
+  });
 }
 
 function maybeRefresh(station, distanceKm) {
-  if (refresh.shouldRefresh(todayStr(), station.id, readJson(META_KEY))) {
+  if (refresh.shouldRefresh(todayStr(), station.id, blob.BLOB_VERSION, readJson(META_KEY))) {
     console.log('Refreshing week for ' + station.officialName);
     fetchWeek(station, distanceKm);
   } else {
