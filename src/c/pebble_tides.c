@@ -17,7 +17,7 @@
 #define SMOOTH_STEPS 8           // sub-samples per control segment
 #define RECORD_BYTES 7
 #define FAR_WARNING_KM 500
-#define WINDOW_SECONDS (14 * 3600)
+#define WINDOW_SECONDS (24 * 3600)  // full day, centered on the Focused Tide
 
 #define PERSIST_BLOB_LEN 10
 #define PERSIST_BLOB_BASE 11
