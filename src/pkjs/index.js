@@ -2,17 +2,28 @@
 
 var tides = require('./tides');
 var geo = require('./geo');
+var blob = require('./blob');
+var refresh = require('./refresh');
 var STATIONS = require('./stations');
 
-// Issue #2: pick the nearest Usable Station from the phone's location, fetch
-// its high/low series, and send the next tide to the watch. Caching and the
-// full week arrive in #3.
+// Issue #3: fetch a full week of high/low extrema, pack into a versioned blob,
+// and stream it to the watch in chunks. Refresh only on a new calendar day or
+// a changed nearest station. The watch persists the blob and works offline.
 var IWLS_HOST = 'https://api-iwls.dfo-mpo.gc.ca';
-var FAR_WARNING_KM = 500;
+var WEEK_DAYS = 7;
+var CHUNK_SIZE = 64; // bytes per AppMessage; must match CHUNK_SIZE on the watch
+var META_KEY = 'cacheMeta';
 var LAST_STATION_KEY = 'lastStation';
 
 function isoZ(date) {
   return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+function todayStr() {
+  var d = new Date();
+  var m = ('0' + (d.getMonth() + 1)).slice(-2);
+  var day = ('0' + d.getDate()).slice(-2);
+  return d.getFullYear() + '-' + m + '-' + day;
 }
 
 function hiloUrl(stationId, fromDate, toDate) {
@@ -23,71 +34,80 @@ function hiloUrl(stationId, fromDate, toDate) {
     '&resolution=ALL';
 }
 
-function sendNextTide(extrema, station, distanceKm) {
-  var classified = tides.classifyExtrema(extrema);
-  var nowEpoch = Math.floor(Date.now() / 1000);
-  var next = tides.pickNextExtremum(classified, nowEpoch);
-  if (!next) {
-    console.log('No upcoming tide in the fetched window');
-    return;
+function readJson(key) {
+  try {
+    var raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
   }
-  Pebble.sendAppMessage({
-    NEXT_TIDE_EPOCH: next.epoch,
-    NEXT_TIDE_TYPE: next.type === 'HIGH' ? 1 : 0,
-    NEXT_TIDE_HEIGHT_CM: next.heightCm,
-    STATION_NAME: station.officialName,
-    STATION_DISTANCE_KM: Math.round(distanceKm),
-  }, function () {
-    console.log('Sent ' + next.type + ' for ' + station.officialName +
-      ' (' + Math.round(distanceKm) + ' km)');
-  }, function (e) {
-    console.log('Failed to send tide: ' + JSON.stringify(e));
-  });
 }
 
-function fetchForStation(station, distanceKm) {
+function writeJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) { /* localStorage may be unavailable; non-fatal */ }
+}
+
+function sendBlob(u8, stationId, onDone) {
+  var chunks = blob.chunkBytes(u8, CHUNK_SIZE);
+  var total = chunks.length;
+  function sendChunk(i) {
+    if (i >= total) {
+      console.log('Blob sent: ' + total + ' chunks, ' + u8.length + ' bytes');
+      if (onDone) { onDone(); }
+      return;
+    }
+    Pebble.sendAppMessage({
+      CHUNK_INDEX: i,
+      CHUNK_TOTAL: total,
+      CHUNK_DATA: Array.prototype.slice.call(chunks[i]),
+    }, function () {
+      sendChunk(i + 1); // ACK received -> send the next chunk
+    }, function (e) {
+      console.log('Chunk ' + i + ' failed: ' + JSON.stringify(e));
+    });
+  }
+  sendChunk(0);
+}
+
+function fetchWeek(station, distanceKm) {
   var now = new Date();
-  var to = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+  var to = new Date(now.getTime() + WEEK_DAYS * 24 * 60 * 60 * 1000);
   var xhr = new XMLHttpRequest();
   xhr.open('GET', hiloUrl(station.id, now, to), true);
-  xhr.timeout = 15000;
+  xhr.timeout = 20000;
   xhr.onload = function () {
     if (xhr.status < 200 || xhr.status >= 300) {
-      console.log('IWLS returned status ' + xhr.status);
+      console.log('IWLS status ' + xhr.status + '; keeping existing cache');
       return;
     }
     try {
       var data = JSON.parse(xhr.responseText);
       if (!Array.isArray(data) || data.length === 0) {
-        console.log('IWLS returned no extrema for ' + station.officialName);
+        console.log('IWLS returned no extrema; keeping existing cache');
         return;
       }
-      sendNextTide(data, station, distanceKm);
+      var classified = tides.classifyExtrema(data);
+      var u8 = blob.packWeek(classified, station, distanceKm);
+      sendBlob(u8, station.id, function () {
+        writeJson(META_KEY, { date: todayStr(), stationId: station.id });
+      });
     } catch (err) {
-      console.log('Failed to parse IWLS response: ' + err);
+      console.log('Failed to handle IWLS response: ' + err);
     }
   };
-  xhr.onerror = function () { console.log('IWLS request errored'); };
-  xhr.ontimeout = function () { console.log('IWLS request timed out'); };
+  xhr.onerror = function () { console.log('IWLS errored; keeping existing cache'); };
+  xhr.ontimeout = function () { console.log('IWLS timed out; keeping existing cache'); };
   xhr.send();
 }
 
-function rememberStation(station, distanceKm) {
-  try {
-    localStorage.setItem(LAST_STATION_KEY, JSON.stringify({
-      id: station.id, officialName: station.officialName,
-      latitude: station.latitude, longitude: station.longitude,
-      operating: station.operating, distanceKm: distanceKm,
-    }));
-  } catch (e) { /* localStorage may be unavailable; non-fatal */ }
-}
-
-function recallStation() {
-  try {
-    var raw = localStorage.getItem(LAST_STATION_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch (e) {
-    return null;
+function maybeRefresh(station, distanceKm) {
+  if (refresh.shouldRefresh(todayStr(), station.id, readJson(META_KEY))) {
+    console.log('Refreshing week for ' + station.officialName);
+    fetchWeek(station, distanceKm);
+  } else {
+    console.log('Cache is fresh for ' + station.officialName + '; not fetching');
   }
 }
 
@@ -97,19 +117,20 @@ function onPosition(pos) {
     console.log('No usable station found');
     return;
   }
-  if (result.distanceKm > FAR_WARNING_KM) {
-    console.log('Nearest station is far: ' + Math.round(result.distanceKm) + ' km');
-  }
-  rememberStation(result.station, result.distanceKm);
-  fetchForStation(result.station, result.distanceKm);
+  writeJson(LAST_STATION_KEY, {
+    id: result.station.id, officialName: result.station.officialName,
+    latitude: result.station.latitude, longitude: result.station.longitude,
+    operating: result.station.operating, distanceKm: result.distanceKm,
+  });
+  maybeRefresh(result.station, result.distanceKm);
 }
 
 function onPositionError(err) {
   console.log('Geolocation failed (' + err.code + '): ' + err.message);
-  var last = recallStation();
+  var last = readJson(LAST_STATION_KEY);
   if (last) {
     console.log('Falling back to last station: ' + last.officialName);
-    fetchForStation(last, last.distanceKm || 0);
+    maybeRefresh(last, last.distanceKm || 0);
   } else {
     console.log('No location and no remembered station');
   }
