@@ -26,6 +26,12 @@ static Layer *s_graph_layer;
 static TextLayer *s_title_layer;
 static TextLayer *s_station_layer;
 static TextLayer *s_status_layer;
+static TextLayer *s_sub_layer;
+static GPath *s_up_arrow;
+static GPath *s_down_arrow;
+
+static const GPathInfo UP_ARROW_PTS = { 3, (GPoint[]) { {-4, 3}, {4, 3}, {0, -4} } };
+static const GPathInfo DOWN_ARROW_PTS = { 3, (GPoint[]) { {-4, -3}, {4, -3}, {0, 4} } };
 
 // Parsed cache state
 static bool s_has_data = false;
@@ -46,6 +52,7 @@ static int s_rx_count = 0;
 static int s_rx_len = 0;
 
 static char s_title_text[24];
+static char s_sub_text[28];
 
 // Graph scratch, kept off the small (~2 KB) app stack.
 static int16_t s_sx[MAX_WIN_POINTS], s_sy[MAX_WIN_POINTS];
@@ -158,29 +165,64 @@ static void prv_reset_focus(void) {
 }
 
 static void prv_update_status(void) {
-  static char far_text[28];
+  static char buf[28];
   if (!connection_service_peek_pebble_app_connection()) {
     text_layer_set_text(s_status_layer, "No phone · cached");
-  } else if (s_far) {
-    snprintf(far_text, sizeof(far_text), "Nearest %d km away", s_distance_km);
-    text_layer_set_text(s_status_layer, far_text);
-  } else {
-    text_layer_set_text(s_status_layer, "");
+    return;
   }
+  if (s_far) {
+    snprintf(buf, sizeof(buf), "Nearest %d km away", s_distance_km);
+    text_layer_set_text(s_status_layer, buf);
+    return;
+  }
+  if (s_focus_idx >= 0) {
+    int nb = -1;
+    for (int i = s_focus_idx - 1; i >= 0; i--) { if (s_pt_kind[i] != 0) { nb = i; break; } }
+    if (nb < 0) { for (int i = s_focus_idx + 1; i < s_point_count; i++) { if (s_pt_kind[i] != 0) { nb = i; break; } } }
+    if (nb >= 0) {
+      int r = s_pt_height[s_focus_idx] - s_pt_height[nb];
+      if (r < 0) { r = -r; }
+      snprintf(buf, sizeof(buf), "Range %d.%02d m", r / 100, r % 100);
+      text_layer_set_text(s_status_layer, buf);
+      return;
+    }
+  }
+  text_layer_set_text(s_status_layer, "");
 }
 
 static void prv_update_chrome(void) {
-  if (!s_has_data) {
+  if (!s_has_data || s_focus_idx < 0) {
     text_layer_set_text(s_title_layer, "Loading…");
+    text_layer_set_text(s_sub_layer, "");
     text_layer_set_text(s_station_layer, "");
-  } else {
-    int f = s_focus_idx;
-    time_t t = (time_t)(f >= 0 ? s_pt_epoch[f] : time(NULL));
-    struct tm *lt = localtime(&t);
-    strftime(s_title_text, sizeof(s_title_text), "%a %b %e", lt);
-    text_layer_set_text(s_title_layer, s_title_text);
-    text_layer_set_text(s_station_layer, s_station_name);
+    prv_update_status();
+    return;
   }
+  int f = s_focus_idx;
+  time_t ft = (time_t)s_pt_epoch[f];
+  struct tm *lt = localtime(&ft);
+  char tstr[12];
+  strftime(tstr, sizeof(tstr), "%l:%M %p", lt);
+  snprintf(s_title_text, sizeof(s_title_text), "%s %s", s_pt_kind[f] == 1 ? "HIGH" : "LOW", tstr);
+  text_layer_set_text(s_title_layer, s_title_text);
+
+  char dstr[12];
+  strftime(dstr, sizeof(dstr), "%a %b %e", lt);
+  int32_t d = s_pt_epoch[f] - (int32_t)time(NULL);
+  char cd[16];
+  if (d >= 0) {
+    int h = d / 3600, m = (d % 3600) / 60;
+    if (h > 0) { snprintf(cd, sizeof(cd), "in %dh %02dm", h, m); }
+    else { snprintf(cd, sizeof(cd), "in %dm", m); }
+  } else {
+    int32_t ad = -d; int h = ad / 3600, m = (ad % 3600) / 60;
+    if (h > 0) { snprintf(cd, sizeof(cd), "%dh %02dm ago", h, m); }
+    else { snprintf(cd, sizeof(cd), "%dm ago", m); }
+  }
+  snprintf(s_sub_text, sizeof(s_sub_text), "%s · %s", dstr, cd);
+  text_layer_set_text(s_sub_layer, s_sub_text);
+
+  text_layer_set_text(s_station_layer, s_station_name);
   prv_update_status();
 }
 
@@ -203,6 +245,27 @@ static float prv_catmull(float p0, float p1, float p2, float p3, float t) {
                  (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
 }
 
+static int prv_level_cm_at(int32_t e) {
+  for (int i = 0; i < s_point_count - 1; i++) {
+    if (s_pt_epoch[i] <= e && e <= s_pt_epoch[i + 1]) {
+      int32_t span = s_pt_epoch[i + 1] - s_pt_epoch[i];
+      if (span <= 0) { return s_pt_height[i]; }
+      return s_pt_height[i] +
+        (int)((long)(s_pt_height[i + 1] - s_pt_height[i]) * (e - s_pt_epoch[i]) / span);
+    }
+  }
+  return s_point_count > 0 ? s_pt_height[0] : 0;
+}
+
+static bool prv_rising_at(int32_t e) {
+  for (int i = 0; i < s_point_count - 1; i++) {
+    if (s_pt_epoch[i] <= e && e <= s_pt_epoch[i + 1]) {
+      return s_pt_height[i + 1] >= s_pt_height[i];
+    }
+  }
+  return true;
+}
+
 static void prv_graph_update(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
   graphics_context_set_fill_color(ctx, GColorWhite);
@@ -216,7 +279,7 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   // Draw the curve and fill edge-to-edge horizontally; on a round screen the
   // bezel clips the corners (intended). Only the inline labels clamp inward.
   int x0 = 0, x1 = b.size.w;
-  int y_top = PBL_IF_ROUND_ELSE(40, 26);
+  int y_top = PBL_IF_ROUND_ELSE(50, 44);
   int y_bottom = b.size.h - PBL_IF_ROUND_ELSE(40, 30);
   int plot_w = x1 - x0;
 
@@ -321,6 +384,37 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     graphics_context_set_text_color(ctx, GColorBlack);
     graphics_draw_text(ctx, lbl, font, GRect(lx, ly, lw, 22),
                        GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+  }
+
+  // Now overlay: only when the current time falls inside the visible window.
+  time_t now_t = time(NULL);
+  if (now_t >= t0 && now_t <= t1) {
+    int nx = x0 + (int)((long)(now_t - t0) * plot_w / WINDOW_SECONDS);
+    int level = prv_level_cm_at((int32_t)now_t);
+    int ny = prv_map_y(level, y_top, y_bottom, lo, hi);
+
+    graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorRed, GColorBlack));
+    graphics_context_set_stroke_width(ctx, 2);
+    graphics_draw_line(ctx, GPoint(nx, y_top), GPoint(nx, y_bottom));
+    graphics_context_set_stroke_width(ctx, 1);
+
+    graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(GColorRed, GColorBlack));
+    graphics_fill_circle(ctx, GPoint(nx, ny), 4);
+
+    GPath *arrow = prv_rising_at((int32_t)now_t) ? s_up_arrow : s_down_arrow;
+    gpath_move_to(arrow, GPoint(nx + 13, ny));
+    graphics_context_set_fill_color(ctx, GColorBlack);
+    gpath_draw_filled(ctx, arrow);
+
+    char hstr[10];
+    int ac = level < 0 ? -level : level;
+    snprintf(hstr, sizeof(hstr), "%d.%02d m", level / 100, ac % 100);
+    int hw = 54, hxx = nx + 20;
+    if (hxx + hw > b.size.w) { hxx = nx - hw - 8; }
+    graphics_context_set_text_color(ctx, GColorBlack);
+    graphics_draw_text(ctx, hstr, fonts_get_system_font(FONT_KEY_GOTHIC_14),
+                       GRect(hxx, ny - 9, hw, 18), GTextOverflowModeFill,
+                       GTextAlignmentLeft, NULL);
   }
 }
 
@@ -471,6 +565,12 @@ static void prv_window_load(Window *window) {
   text_layer_set_font(s_title_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
   layer_add_child(root, text_layer_get_layer(s_title_layer));
 
+  s_sub_layer = text_layer_create(GRect(0, PBL_IF_ROUND_ELSE(30, 22), bounds.size.w, 18));
+  text_layer_set_text_alignment(s_sub_layer, GTextAlignmentCenter);
+  text_layer_set_background_color(s_sub_layer, GColorClear);
+  text_layer_set_font(s_sub_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
+  layer_add_child(root, text_layer_get_layer(s_sub_layer));
+
   s_station_layer = text_layer_create(GRect(0, bounds.size.h - PBL_IF_ROUND_ELSE(34, 28), bounds.size.w, 18));
   text_layer_set_text_alignment(s_station_layer, GTextAlignmentCenter);
   text_layer_set_background_color(s_station_layer, GColorClear);
@@ -489,8 +589,14 @@ static void prv_window_load(Window *window) {
 static void prv_window_unload(Window *window) {
   layer_destroy(s_graph_layer);
   text_layer_destroy(s_title_layer);
+  text_layer_destroy(s_sub_layer);
   text_layer_destroy(s_station_layer);
   text_layer_destroy(s_status_layer);
+}
+
+static void prv_tick(struct tm *tick_time, TimeUnits units_changed) {
+  prv_update_chrome();
+  layer_mark_dirty(s_graph_layer);
 }
 
 static void prv_init(void) {
@@ -504,6 +610,10 @@ static void prv_init(void) {
   });
   window_set_click_config_provider(s_window, prv_click_config);
   window_stack_push(s_window, true);
+
+  s_up_arrow = gpath_create(&UP_ARROW_PTS);
+  s_down_arrow = gpath_create(&DOWN_ARROW_PTS);
+  tick_timer_service_subscribe(MINUTE_UNIT, prv_tick);
 
   app_message_register_inbox_received(prv_inbox_received);
   app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
@@ -519,6 +629,9 @@ static void prv_deinit(void) {
     animation_destroy(s_pan_anim);
     s_pan_anim = NULL;
   }
+  tick_timer_service_unsubscribe();
+  gpath_destroy(s_up_arrow);
+  gpath_destroy(s_down_arrow);
   connection_service_unsubscribe();
   window_destroy(s_window);
 }
