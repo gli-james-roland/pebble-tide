@@ -5,6 +5,7 @@ var tides = require('./tides');
 var geo = require('./geo');
 var blob = require('./blob');
 var refresh = require('./refresh');
+var sun = require('./sun');
 var STATIONS = require('./stations');
 
 // Issue #9: phone-side display config. Two settings — height units (feet/metres)
@@ -112,12 +113,26 @@ function sendBlob(u8, stationId, onDone) {
   sendChunk(0);
 }
 
+// One sunrise/sunset per UTC day spanning the fetch window, computed from the
+// station's coordinates (issue #8). The watch shades the night columns from
+// these, fully offline.
+function sunDaysForWindow(from, to, station) {
+  var DAY_MS = 24 * 60 * 60 * 1000;
+  var days = [];
+  var dayStart = Math.floor(from.getTime() / DAY_MS) * DAY_MS;
+  for (var t = dayStart; t <= to.getTime(); t += DAY_MS) {
+    days.push(sun.sunTimes(t, station.latitude, station.longitude));
+  }
+  return days;
+}
+
 function fetchWeek(station, distanceKm) {
   var now = new Date();
   var from = new Date(now.getTime() - BACK_DAYS * 24 * 60 * 60 * 1000);
   var to = new Date(now.getTime() + WEEK_DAYS * 24 * 60 * 60 * 1000);
   var hiloUrl = seriesUrl(station.id, 'wlp-hilo', 'ALL', from, to);
   var curveUrl = seriesUrl(station.id, 'wlp', 'SIXTY_MINUTES', from, to);
+  var sunDays = sunDaysForWindow(from, to, station);
 
   fetchJson(hiloUrl, function (e1, hilo) {
     if (e1 || !Array.isArray(hilo) || hilo.length === 0) {
@@ -130,7 +145,7 @@ function fetchWeek(station, distanceKm) {
         return;
       }
       var points = tides.mergePoints(tides.toCurvePoints(curve), tides.classifyExtrema(hilo));
-      var u8 = blob.packWeek(points, station, distanceKm);
+      var u8 = blob.packWeek(points, station, distanceKm, sunDays);
       sendBlob(u8, station.id, function () {
         writeJson(META_KEY, { date: todayStr(), stationId: station.id, version: blob.BLOB_VERSION });
       });

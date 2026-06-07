@@ -7,10 +7,11 @@
 // at the highs and lows. Static focus on the next upcoming extremum;
 // navigation and the now-state arrive in #5/#6.
 
-#define BLOB_VERSION 2
+#define BLOB_VERSION 3
 #define CHUNK_SIZE 64            // must match CHUNK_SIZE in src/pkjs/index.js
 #define MAX_BLOB_BYTES 2048
 #define MAX_POINTS 256
+#define MAX_SUN_DAYS 16          // per-day sunrise/sunset; window is ~9 days
 #define MAX_WIN_POINTS 96
 #define MAX_DENSE 800            // smoothed (Catmull-Rom) curve samples
 #define SMOOTH_STEPS 8           // sub-samples per control segment
@@ -55,6 +56,10 @@ static int16_t s_pt_height[MAX_POINTS];
 static uint8_t s_pt_kind[MAX_POINTS]; // 0 plain, 1 HIGH, 2 LOW
 static int s_min_cm = 0;
 static int s_max_cm = 0;
+// Per-day sunrise/sunset (unix secs, UTC) for night shading (issue #8).
+static int s_sun_count = 0;
+static int32_t s_sun_rise[MAX_SUN_DAYS];
+static int32_t s_sun_set[MAX_SUN_DAYS];
 
 // Display config (defaults: feet + 12-hour), overridden by the phone.
 static int s_units = UNITS_FEET;
@@ -73,6 +78,12 @@ static char s_sub_text[28];
 static int16_t s_sx[MAX_WIN_POINTS], s_sy[MAX_WIN_POINTS];
 static uint8_t s_sk[MAX_WIN_POINTS];
 static int16_t s_dx[MAX_DENSE], s_dy[MAX_DENSE];
+
+// Mid-tide scratch: at most one crossing on each side of the Focused Tide.
+static int32_t s_mid_epoch[2];
+static int s_mid_cm[2];
+static int s_mid_ext_x[2];   // screen x of the adjacent extremum (label-collision guard)
+static int s_mid_count = 0;
 
 // Navigation + curve-pan animation state
 static int s_focus_idx = -1;        // index into points of the Focused Tide
@@ -120,6 +131,24 @@ static bool prv_parse_blob(const uint8_t *buf, int len) {
     if (s_pt_height[i] < s_min_cm) { s_min_cm = s_pt_height[i]; }
     if (s_pt_height[i] > s_max_cm) { s_max_cm = s_pt_height[i]; }
   }
+
+  // Sun section (v3): u8 day count, then per day i32 sunrise, i32 sunset.
+  s_sun_count = 0;
+  if (o < len) {
+    int sun_days = buf[o]; o += 1;
+    for (int i = 0; i < sun_days; i++) {
+      if (o + 8 > len) { break; }
+      int32_t rise, set;
+      memcpy(&rise, buf + o, 4); o += 4;
+      memcpy(&set, buf + o, 4); o += 4;
+      if (s_sun_count < MAX_SUN_DAYS) {
+        s_sun_rise[s_sun_count] = rise;
+        s_sun_set[s_sun_count] = set;
+        s_sun_count++;
+      }
+    }
+  }
+
   s_has_data = s_point_count > 0;
   return true;
 }
@@ -280,6 +309,8 @@ static void prv_update_chrome(void) {
 // Graph rendering
 // ---------------------------------------------------------------------------
 
+static int prv_step_extremum(int from, int dir); // defined with navigation
+
 static int prv_map_y(int height_cm, int y_top, int y_bottom, int lo, int hi) {
   if (hi <= lo) { return y_bottom; }
   int span = hi - lo;
@@ -307,11 +338,37 @@ static int prv_level_cm_at(int32_t e) {
   return s_point_count > 0 ? s_pt_height[0] : 0;
 }
 
+// Find where the piecewise-linear curve between cached points [a..b] crosses
+// level_cm. Returns the crossing epoch (or 0 if none in range). a < b assumed.
+static int32_t prv_cross_epoch(int a, int b, int level_cm) {
+  for (int i = a; i < b; i++) {
+    int h0 = s_pt_height[i], h1 = s_pt_height[i + 1];
+    int lo = h0 < h1 ? h0 : h1, hi = h0 < h1 ? h1 : h0;
+    if (level_cm < lo || level_cm > hi) { continue; }
+    if (h1 == h0) { return s_pt_epoch[i]; }
+    int32_t span = s_pt_epoch[i + 1] - s_pt_epoch[i];
+    return s_pt_epoch[i] + (int32_t)((long)(level_cm - h0) * span / (h1 - h0));
+  }
+  return 0;
+}
+
 static bool prv_rising_at(int32_t e) {
   for (int i = 0; i < s_point_count - 1; i++) {
     if (s_pt_epoch[i] <= e && e <= s_pt_epoch[i + 1]) {
       return s_pt_height[i + 1] >= s_pt_height[i];
     }
+  }
+  return true;
+}
+
+// Night if the epoch falls outside every day's daylight span. Spans are
+// [sunrise, sunset]; sunset can run past UTC midnight, so spans are checked
+// directly rather than bucketed by calendar day. Returns true when no daylight
+// span contains the time. With no sun data we report daylight (no shading).
+static bool prv_is_night(int32_t e) {
+  if (s_sun_count == 0) { return false; }
+  for (int i = 0; i < s_sun_count; i++) {
+    if (e >= s_sun_rise[i] && e <= s_sun_set[i]) { return false; }
   }
   return true;
 }
@@ -337,6 +394,51 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   int pad = (s_max_cm - s_min_cm) / 10;
   if (pad < 15) { pad = 15; }
   int lo = s_min_cm - pad, hi = s_max_cm + pad;
+
+  // Night shading: a subtle overlay behind the water fill, curve, and markers
+  // so daylight tides read at a glance (issue #8). On colour a pale grey-blue;
+  // on B&W a sparse dotted column so the water fill still shows through.
+  if (s_sun_count > 0) {
+    GColor night = PBL_IF_COLOR_ELSE(GColorCeleste, GColorBlack);
+    graphics_context_set_stroke_color(ctx, night);
+    for (int x = x0; x <= x1; x++) {
+      int32_t t = (int32_t)(t0 + (long)(x - x0) * WINDOW_SECONDS / plot_w);
+      if (!prv_is_night(t)) { continue; }
+#if defined(PBL_COLOR)
+      graphics_draw_line(ctx, GPoint(x, y_top), GPoint(x, y_bottom));
+#else
+      // Sparse stipple keeps it subtle on black-and-white screens.
+      for (int y = y_top + (x & 3); y <= y_bottom; y += 4) {
+        graphics_draw_pixel(ctx, GPoint(x, y));
+      }
+#endif
+    }
+  }
+
+  // Mid-tides: 50% crossings between the Focused Tide and each adjacent
+  // extremum. Computed in data space here; drawn as subordinate ticks below.
+  s_mid_count = 0;
+  int focus_x = x0 + (int)((long)(s_pt_epoch[s_focus_idx] - t0) * plot_w / WINDOW_SECONDS);
+  if (s_pt_kind[s_focus_idx] != 0) {
+    int prev_ext = prv_step_extremum(s_focus_idx, -1);
+    int next_ext = prv_step_extremum(s_focus_idx, +1);
+    int adj[2] = { prev_ext, next_ext };
+    for (int k = 0; k < 2 && s_mid_count < 2; k++) {
+      int j = adj[k];
+      if (j < 0) { continue; }
+      int a = j < s_focus_idx ? j : s_focus_idx;
+      int b = j < s_focus_idx ? s_focus_idx : j;
+      int mid_cm = (s_pt_height[s_focus_idx] + s_pt_height[j]) / 2;
+      int32_t ce = prv_cross_epoch(a, b, mid_cm);
+      if (ce == 0) { continue; }
+      if (ce < (int32_t)t0 || ce > (int32_t)t1) { continue; }
+      s_mid_epoch[s_mid_count] = ce;
+      s_mid_cm[s_mid_count] = mid_cm;
+      s_mid_ext_x[s_mid_count] =
+          x0 + (int)((long)(s_pt_epoch[j] - t0) * plot_w / WINDOW_SECONDS);
+      s_mid_count++;
+    }
+  }
 
   // Project points in (and just past) the window to screen space.
   int n = 0;
@@ -433,6 +535,37 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     int ly = high ? s_sy[i] - 30 : s_sy[i] + 9;
     graphics_context_set_text_color(ctx, GColorBlack);
     graphics_draw_text(ctx, lbl, font, GRect(lx, ly, lw, 22),
+                       GTextOverflowModeFill, GTextAlignmentCenter, NULL);
+  }
+
+  // Mid-tide ticks: subordinate to the high/low markers. A short vertical tick
+  // sits on the curve at each 50% crossing; the small time label appears only
+  // when it clears the neighbouring extremum labels and the clipped edge zone.
+  GFont mid_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+  for (int i = 0; i < s_mid_count; i++) {
+    int mx = x0 + (int)((long)(s_mid_epoch[i] - t0) * plot_w / WINDOW_SECONDS);
+    int my = prv_map_y(s_mid_cm[i], y_top, y_bottom, lo, hi);
+
+    graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorDarkGray, GColorBlack));
+    graphics_context_set_stroke_width(ctx, 1);
+    graphics_draw_line(ctx, GPoint(mx, my - 3), GPoint(mx, my + 3));
+
+    // Suppress the label near either neighbouring extremum or in the edge zone.
+    int edge = PBL_IF_ROUND_ELSE(32, 6);
+    if (mx < edge || mx > b.size.w - edge) { continue; }
+    int df = mx - focus_x; if (df < 0) { df = -df; }
+    int de = mx - s_mid_ext_x[i]; if (de < 0) { de = -de; }
+    if (df < 44 || de < 44) { continue; }
+
+    time_t mt = (time_t)s_mid_epoch[i];
+    struct tm *mlt = localtime(&mt);
+    char mlbl[12];
+    strftime(mlbl, sizeof(mlbl), "%l:%M %p", mlt);
+    int mw = 64, mlx = mx - mw / 2;
+    if (mlx < 0) { mlx = 0; }
+    if (mlx + mw > b.size.w) { mlx = b.size.w - mw; }
+    graphics_context_set_text_color(ctx, PBL_IF_COLOR_ELSE(GColorDarkGray, GColorBlack));
+    graphics_draw_text(ctx, mlbl, mid_font, GRect(mlx, my - 20, mw, 16),
                        GTextOverflowModeFill, GTextAlignmentCenter, NULL);
   }
 
