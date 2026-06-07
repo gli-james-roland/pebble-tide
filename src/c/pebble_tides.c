@@ -373,9 +373,46 @@ static bool prv_is_night(int32_t e) {
   return true;
 }
 
+#define TIDE_COLOR GColorVividCerulean
+static int16_t s_sh[MAX_WIN_POINTS];   // control-point heights (cm), for labels
+static int s_curve_mode = 1;           // 0 = merged Catmull, 1 = cosine-between-extrema (experiment)
+
+// EXPERIMENT: build the curve as a cosine between consecutive extrema (the
+// classic tide shape) instead of the merged hourly polyline. Returns 0 if
+// there are too few extrema in range, so the caller can fall back.
+static int prv_build_cosine(time_t t0, time_t t1, int x0, int plot_w,
+                            int y_top, int y_bottom, int lo, int hi) {
+  static int16_t exx[40], exy[40];
+  int ex = 0;
+  for (int i = 0; i < s_point_count && ex < 40; i++) {
+    if (s_pt_kind[i] == 0) { continue; }
+    if (s_pt_epoch[i] < (int32_t)t0 - 8 * 3600 || s_pt_epoch[i] > (int32_t)t1 + 8 * 3600) { continue; }
+    exx[ex] = x0 + (int)((long)(s_pt_epoch[i] - t0) * plot_w / WINDOW_SECONDS);
+    exy[ex] = prv_map_y(s_pt_height[i], y_top, y_bottom, lo, hi);
+    ex++;
+  }
+  if (ex < 2) { return 0; }
+  int dn = 0;
+  for (int i = 0; i < ex - 1 && dn < MAX_DENSE - 1; i++) {
+    int xa = exx[i], ya = exy[i], xb = exx[i + 1], yb = exy[i + 1];
+    int steps = SMOOTH_STEPS * 2;
+    for (int st = 0; st < steps && dn < MAX_DENSE - 1; st++) {
+      int32_t angle = (TRIG_MAX_ANGLE / 2) * st / steps; // 0..pi
+      int32_t c = cos_lookup(angle);                     // [-RATIO, RATIO]
+      s_dx[dn] = xa + (xb - xa) * st / steps;
+      s_dy[dn] = (ya + yb) / 2 + (int)(((long)(ya - yb) * c) / (2 * TRIG_MAX_RATIO));
+      dn++;
+    }
+  }
+  s_dx[dn] = exx[ex - 1];
+  s_dy[dn] = exy[ex - 1];
+  dn++;
+  return dn;
+}
+
 static void prv_graph_update(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
-  graphics_context_set_fill_color(ctx, GColorWhite);
+  graphics_context_set_fill_color(ctx, GColorBlack);
   graphics_fill_rect(ctx, b, 0, GCornerNone);
   if (!s_has_data || s_point_count < 2) { return; }
 
@@ -430,32 +467,40 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     s_sx[n] = x;
     s_sy[n] = prv_map_y(s_pt_height[i], y_top, y_bottom, lo, hi);
     s_sk[n] = s_pt_kind[i];
+    s_sh[n] = s_pt_height[i];
     n++;
   }
   if (n < 2) { return; }
 
-  // Build a smoothed (Catmull-Rom) polyline through the control points.
+  // Curve: cosine-between-extrema (experiment) with a Catmull-Rom fallback
+  // over the merged points when there aren't enough extrema in range.
   int dn = 0;
-  for (int i = 0; i < n - 1 && dn < MAX_DENSE - 1; i++) {
-    int i0 = i > 0 ? i - 1 : 0;
-    int i3 = i + 2 < n ? i + 2 : n - 1;
-    for (int s = 0; s < SMOOTH_STEPS && dn < MAX_DENSE - 1; s++) {
-      float t = (float)s / SMOOTH_STEPS;
-      s_dx[dn] = (int16_t)(prv_catmull(s_sx[i0], s_sx[i], s_sx[i + 1], s_sx[i3], t) + 0.5f);
-      s_dy[dn] = (int16_t)(prv_catmull(s_sy[i0], s_sy[i], s_sy[i + 1], s_sy[i3], t) + 0.5f);
-      dn++;
-    }
+  if (s_curve_mode == 1) {
+    dn = prv_build_cosine(t0, t1, x0, plot_w, y_top, y_bottom, lo, hi);
   }
-  s_dx[dn] = s_sx[n - 1];
-  s_dy[dn] = s_sy[n - 1];
-  dn++;
+  if (dn < 2) {
+    dn = 0;
+    for (int i = 0; i < n - 1 && dn < MAX_DENSE - 1; i++) {
+      int i0 = i > 0 ? i - 1 : 0;
+      int i3 = i + 2 < n ? i + 2 : n - 1;
+      for (int s = 0; s < SMOOTH_STEPS && dn < MAX_DENSE - 1; s++) {
+        float t = (float)s / SMOOTH_STEPS;
+        s_dx[dn] = (int16_t)(prv_catmull(s_sx[i0], s_sx[i], s_sx[i + 1], s_sx[i3], t) + 0.5f);
+        s_dy[dn] = (int16_t)(prv_catmull(s_sy[i0], s_sy[i], s_sy[i + 1], s_sy[i3], t) + 0.5f);
+        dn++;
+      }
+    }
+    s_dx[dn] = s_sx[n - 1];
+    s_dy[dn] = s_sy[n - 1];
+    dn++;
+  }
 
   // Water fill: light-to-dark vertical gradient under the curve, with a grey
   // night-sky tint above it during dark hours. (B&W keeps a simple night
   // stipple and no fill; full B&W styling is issue #10.)
-#if defined(PBL_COLOR)
-  GColor water_bands[4] = { GColorVividCerulean, GColorBlueMoon, GColorCobaltBlue, GColorDukeBlue };
-#endif
+  // Water: one blue, fading to transparent (sparser dither) with depth, over
+  // the black background. Grey night-sky tint above the curve. (Dark-theme
+  // experiment; B&W keeps a simple night stipple.)
   for (int i = 0; i < dn - 1; i++) {
     int xa = s_dx[i], xb = s_dx[i + 1];
     if (xb < xa) { continue; }
@@ -466,18 +511,19 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
         prv_is_night((int32_t)(t0 + (long)(x - x0) * WINDOW_SECONDS / plot_w));
 #if defined(PBL_COLOR)
       if (night && y > y_top) {
-        graphics_context_set_stroke_color(ctx, GColorLightGray);
-        graphics_draw_line(ctx, GPoint(x, y_top), GPoint(x, y - 1));
+        graphics_context_set_stroke_color(ctx, GColorDarkGray);
+        for (int yy = y_top; yy < y; yy++) { if (((x + yy) & 1) == 0) graphics_draw_pixel(ctx, GPoint(x, yy)); }
       }
       int ph = y_bottom - y_top;
-      for (int bnd = 0; bnd < 4; bnd++) {
-        int btop = y_top + ph * bnd / 4;
-        int bbot = (bnd == 3) ? y_bottom : y_top + ph * (bnd + 1) / 4 - 1;
-        int seg_top = y > btop ? y : btop;
-        if (seg_top <= bbot) {
-          graphics_context_set_stroke_color(ctx, water_bands[bnd]);
-          graphics_draw_line(ctx, GPoint(x, seg_top), GPoint(x, bbot));
-        }
+      graphics_context_set_stroke_color(ctx, TIDE_COLOR);
+      for (int yy = y; yy <= y_bottom; yy++) {
+        int band = ph > 0 ? (yy - y_top) * 4 / ph : 0;   // 0 (top) .. 3 (bottom)
+        bool draw;
+        if (band <= 0) { draw = true; }                  // solid blue near surface
+        else if (band == 1) { draw = ((x + yy) & 3) != 0; }   // ~75%
+        else if (band == 2) { draw = ((x + yy) & 1) == 0; }   // ~50%
+        else { draw = ((x + yy) & 3) == 0; }                  // ~25%, most transparent
+        if (draw) { graphics_draw_pixel(ctx, GPoint(x, yy)); }
       }
 #else
       if (night) {
@@ -507,39 +553,40 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   }
   graphics_context_set_stroke_width(ctx, 1);
 
-  // Markers + inline time labels at the extrema. Both are filled with a black
-  // outline; HIGH is dark blue, LOW is light green.
-  GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_18);
+  // Markers: black centre, tide-coloured ring. Labels are coloured pills
+  // (HIGH = tide blue, LOW = pink) with white time + height. (Dark-theme
+  // experiment.)
+  GFont pill_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   for (int i = 0; i < n; i++) {
     if (s_sk[i] == 0) { continue; }
     bool high = s_sk[i] == 1;
     GPoint p = GPoint(s_sx[i], s_sy[i]);
-    graphics_context_set_fill_color(ctx, high
-        ? PBL_IF_COLOR_ELSE(GColorPictonBlue, GColorWhite)
-        : PBL_IF_COLOR_ELSE(GColorMintGreen, GColorWhite));
+    graphics_context_set_fill_color(ctx, GColorBlack);
     graphics_fill_circle(ctx, p, 5);
-    graphics_context_set_stroke_color(ctx, GColorBlack);
+    graphics_context_set_stroke_color(ctx, TIDE_COLOR);
     graphics_context_set_stroke_width(ctx, 2);
     graphics_draw_circle(ctx, p, 5);
     graphics_context_set_stroke_width(ctx, 1);
 
-    // Skip labels for markers in the clipped edge zone (round corners); the
-    // dot still shows on the curve, but its label would be cut by the bezel.
     int edge = PBL_IF_ROUND_ELSE(32, 6);
     if (s_sx[i] < edge || s_sx[i] > b.size.w - edge) { continue; }
 
     time_t pt = (time_t)(t0 + (long)(s_sx[i] - x0) * WINDOW_SECONDS / plot_w);
     struct tm *lt = localtime(&pt);
-    char lbl[12];
-    strftime(lbl, sizeof(lbl), prv_time_fmt(), lt); // 12h AM/PM or 24h per config
+    char tstr[12], hstr[12], lbl[28];
+    strftime(tstr, sizeof(tstr), prv_time_fmt(), lt);
+    prv_format_height(s_sh[i], hstr, sizeof(hstr));
+    snprintf(lbl, sizeof(lbl), "%s\n%s", tstr, hstr);
 
-    int lw = 80;
-    int lx = s_sx[i] - lw / 2;
-    if (lx < 0) { lx = 0; }
-    if (lx + lw > b.size.w) { lx = b.size.w - lw; }
-    int ly = high ? s_sy[i] - 30 : s_sy[i] + 9;
-    graphics_context_set_text_color(ctx, GColorBlack);
-    graphics_draw_text(ctx, lbl, font, GRect(lx, ly, lw, 22),
+    int pw = 64, ph = 34;
+    int px = s_sx[i] - pw / 2;
+    if (px < 0) { px = 0; }
+    if (px + pw > b.size.w) { px = b.size.w - pw; }
+    int py = high ? s_sy[i] - ph - 8 : s_sy[i] + 8;
+    graphics_context_set_fill_color(ctx, high ? TIDE_COLOR : GColorFolly);
+    graphics_fill_rect(ctx, GRect(px, py, pw, ph), 5, GCornersAll);
+    graphics_context_set_text_color(ctx, GColorWhite);
+    graphics_draw_text(ctx, lbl, pill_font, GRect(px, py + 1, pw, ph),
                        GTextOverflowModeFill, GTextAlignmentCenter, NULL);
   }
 
@@ -581,12 +628,12 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     int level = prv_level_cm_at((int32_t)now_t);
     int ny = prv_map_y(level, y_top, y_bottom, lo, hi);
 
-    graphics_context_set_stroke_color(ctx, PBL_IF_COLOR_ELSE(GColorRed, GColorBlack));
+    graphics_context_set_stroke_color(ctx, GColorWhite);
     graphics_context_set_stroke_width(ctx, 2);
     graphics_draw_line(ctx, GPoint(nx, y_top), GPoint(nx, y_bottom));
     graphics_context_set_stroke_width(ctx, 1);
 
-    graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(GColorRed, GColorBlack));
+    graphics_context_set_fill_color(ctx, GColorWhite);
     graphics_fill_circle(ctx, GPoint(nx, ny), 4);
 
     // Current height + trend at the TOP of the now-line, clear of the curve dot.
@@ -598,9 +645,9 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     if (hx < 0) { hx = 0; }
     GPath *arrow = prv_rising_at((int32_t)now_t) ? s_up_arrow : s_down_arrow;
     gpath_move_to(arrow, GPoint(left_side ? nx - 5 : nx + 5, y_top + 8));
-    graphics_context_set_fill_color(ctx, GColorBlack);
+    graphics_context_set_fill_color(ctx, GColorWhite);
     gpath_draw_filled(ctx, arrow);
-    graphics_context_set_text_color(ctx, GColorBlack);
+    graphics_context_set_text_color(ctx, GColorWhite);
     graphics_draw_text(ctx, hstr, fonts_get_system_font(FONT_KEY_GOTHIC_14),
                        GRect(hx, y_top + 1, hw, 18), GTextOverflowModeFill,
                        left_side ? GTextAlignmentRight : GTextAlignmentLeft, NULL);
@@ -759,7 +806,7 @@ static void prv_click_config(void *ctx) {
 // ---------------------------------------------------------------------------
 
 static void prv_window_load(Window *window) {
-  window_set_background_color(window, GColorWhite);
+  window_set_background_color(window, GColorBlack);
   Layer *root = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(root);
 
@@ -772,24 +819,28 @@ static void prv_window_load(Window *window) {
   text_layer_set_text_alignment(s_title_layer, GTextAlignmentCenter);
   text_layer_set_background_color(s_title_layer, GColorClear);
   text_layer_set_font(s_title_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+  text_layer_set_text_color(s_title_layer, GColorWhite);
   layer_add_child(root, text_layer_get_layer(s_title_layer));
 
   s_sub_layer = text_layer_create(GRect(0, PBL_IF_ROUND_ELSE(30, 22), bounds.size.w, 18));
   text_layer_set_text_alignment(s_sub_layer, GTextAlignmentCenter);
   text_layer_set_background_color(s_sub_layer, GColorClear);
   text_layer_set_font(s_sub_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
+  text_layer_set_text_color(s_sub_layer, GColorWhite);
   layer_add_child(root, text_layer_get_layer(s_sub_layer));
 
   s_station_layer = text_layer_create(GRect(0, bounds.size.h - PBL_IF_ROUND_ELSE(34, 28), bounds.size.w, 18));
   text_layer_set_text_alignment(s_station_layer, GTextAlignmentCenter);
   text_layer_set_background_color(s_station_layer, GColorClear);
   text_layer_set_font(s_station_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
+  text_layer_set_text_color(s_station_layer, GColorWhite);
   layer_add_child(root, text_layer_get_layer(s_station_layer));
 
   s_status_layer = text_layer_create(GRect(0, bounds.size.h - PBL_IF_ROUND_ELSE(18, 14), bounds.size.w, 14));
   text_layer_set_text_alignment(s_status_layer, GTextAlignmentCenter);
   text_layer_set_background_color(s_status_layer, GColorClear);
   text_layer_set_font(s_status_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
+  text_layer_set_text_color(s_status_layer, GColorWhite);
   layer_add_child(root, text_layer_get_layer(s_status_layer));
 
   prv_update_chrome();
