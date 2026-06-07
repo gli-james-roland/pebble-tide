@@ -395,26 +395,6 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   if (pad < 15) { pad = 15; }
   int lo = s_min_cm - pad, hi = s_max_cm + pad;
 
-  // Night shading: a subtle overlay behind the water fill, curve, and markers
-  // so daylight tides read at a glance (issue #8). On colour a pale grey-blue;
-  // on B&W a sparse dotted column so the water fill still shows through.
-  if (s_sun_count > 0) {
-    GColor night = PBL_IF_COLOR_ELSE(GColorCeleste, GColorBlack);
-    graphics_context_set_stroke_color(ctx, night);
-    for (int x = x0; x <= x1; x++) {
-      int32_t t = (int32_t)(t0 + (long)(x - x0) * WINDOW_SECONDS / plot_w);
-      if (!prv_is_night(t)) { continue; }
-#if defined(PBL_COLOR)
-      graphics_draw_line(ctx, GPoint(x, y_top), GPoint(x, y_bottom));
-#else
-      // Sparse stipple keeps it subtle on black-and-white screens.
-      for (int y = y_top + (x & 3); y <= y_bottom; y += 4) {
-        graphics_draw_pixel(ctx, GPoint(x, y));
-      }
-#endif
-    }
-  }
-
   // Mid-tides: 50% crossings between the Focused Tide and each adjacent
   // extremum. Computed in data space here; drawn as subordinate ticks below.
   s_mid_count = 0;
@@ -470,18 +450,43 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   s_dy[dn] = s_sy[n - 1];
   dn++;
 
-  // Water fill under the smoothed curve, column by column per dense segment.
-  GColor water = PBL_IF_COLOR_ELSE(GColorVividCerulean, GColorClear);
-  if (!gcolor_equal(water, GColorClear)) {
-    graphics_context_set_stroke_color(ctx, water);
-    for (int i = 0; i < dn - 1; i++) {
-      int xa = s_dx[i], xb = s_dx[i + 1];
-      if (xb < xa) { continue; }
-      int dxw = xb - xa;
-      for (int x = xa; x <= xb; x++) {
-        int y = dxw > 0 ? s_dy[i] + (s_dy[i + 1] - s_dy[i]) * (x - xa) / dxw : s_dy[i];
-        graphics_draw_line(ctx, GPoint(x, y), GPoint(x, y_bottom));
+  // Water fill: light-to-dark vertical gradient under the curve, with a grey
+  // night-sky tint above it during dark hours. (B&W keeps a simple night
+  // stipple and no fill; full B&W styling is issue #10.)
+#if defined(PBL_COLOR)
+  GColor water_bands[4] = { GColorVividCerulean, GColorBlueMoon, GColorCobaltBlue, GColorDukeBlue };
+#endif
+  for (int i = 0; i < dn - 1; i++) {
+    int xa = s_dx[i], xb = s_dx[i + 1];
+    if (xb < xa) { continue; }
+    int dxw = xb - xa;
+    for (int x = xa; x <= xb; x++) {
+      int y = dxw > 0 ? s_dy[i] + (s_dy[i + 1] - s_dy[i]) * (x - xa) / dxw : s_dy[i];
+      bool night = s_sun_count > 0 &&
+        prv_is_night((int32_t)(t0 + (long)(x - x0) * WINDOW_SECONDS / plot_w));
+#if defined(PBL_COLOR)
+      if (night && y > y_top) {
+        graphics_context_set_stroke_color(ctx, GColorLightGray);
+        graphics_draw_line(ctx, GPoint(x, y_top), GPoint(x, y - 1));
       }
+      int ph = y_bottom - y_top;
+      for (int bnd = 0; bnd < 4; bnd++) {
+        int btop = y_top + ph * bnd / 4;
+        int bbot = (bnd == 3) ? y_bottom : y_top + ph * (bnd + 1) / 4 - 1;
+        int seg_top = y > btop ? y : btop;
+        if (seg_top <= bbot) {
+          graphics_context_set_stroke_color(ctx, water_bands[bnd]);
+          graphics_draw_line(ctx, GPoint(x, seg_top), GPoint(x, bbot));
+        }
+      }
+#else
+      if (night) {
+        graphics_context_set_stroke_color(ctx, GColorBlack);
+        for (int yy = y_top + (x & 3); yy <= y_bottom; yy += 4) {
+          graphics_draw_pixel(ctx, GPoint(x, yy));
+        }
+      }
+#endif
     }
   }
 
@@ -584,19 +589,21 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     graphics_context_set_fill_color(ctx, PBL_IF_COLOR_ELSE(GColorRed, GColorBlack));
     graphics_fill_circle(ctx, GPoint(nx, ny), 4);
 
-    GPath *arrow = prv_rising_at((int32_t)now_t) ? s_up_arrow : s_down_arrow;
-    gpath_move_to(arrow, GPoint(nx + 13, ny));
-    graphics_context_set_fill_color(ctx, GColorBlack);
-    gpath_draw_filled(ctx, arrow);
-
+    // Current height + trend at the TOP of the now-line, clear of the curve dot.
     char hstr[16];
     prv_format_height(level, hstr, sizeof(hstr));
-    int hw = 54, hxx = nx + 20;
-    if (hxx + hw > b.size.w) { hxx = nx - hw - 8; }
+    int hw = 56;
+    bool left_side = (nx + 14 + hw > b.size.w);
+    int hx = left_side ? nx - 12 - hw : nx + 14;
+    if (hx < 0) { hx = 0; }
+    GPath *arrow = prv_rising_at((int32_t)now_t) ? s_up_arrow : s_down_arrow;
+    gpath_move_to(arrow, GPoint(left_side ? nx - 5 : nx + 5, y_top + 8));
+    graphics_context_set_fill_color(ctx, GColorBlack);
+    gpath_draw_filled(ctx, arrow);
     graphics_context_set_text_color(ctx, GColorBlack);
     graphics_draw_text(ctx, hstr, fonts_get_system_font(FONT_KEY_GOTHIC_14),
-                       GRect(hxx, ny - 9, hw, 18), GTextOverflowModeFill,
-                       GTextAlignmentLeft, NULL);
+                       GRect(hx, y_top + 1, hw, 18), GTextOverflowModeFill,
+                       left_side ? GTextAlignmentRight : GTextAlignmentLeft, NULL);
   }
 }
 

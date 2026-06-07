@@ -1,0 +1,49 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('src/resources/tide_stations.json'\\)\\); print\\('type',type\\(d\\)\\); print\\('len',len\\(d\\) if hasattr\\(d,'__len__'\\) else 'n/a'\\); print\\('sample keys', list\\(d[0].keys\\(\\)\\) if isinstance\\(d,list\\) else list\\(d.keys\\(\\)\\)\\); print\\('sample', json.dumps\\(d[0] if isinstance\\(d,list\\) else d, indent=2\\)[:600]\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); ts=d.get\\('timeSeries',[]\\); print\\('station:', d.get\\('officialName'\\)\\); print\\('timeSeries codes:', [t.get\\('code'\\) for t in ts]\\)\")",
+      "Bash(pebble --version)",
+      "Bash(node --test)",
+      "Bash(pebble build *)",
+      "Bash(pebble clean *)",
+      "Bash(pebble install *)",
+      "Bash(timeout 8 pebble logs --emulator gabbro)",
+      "Bash(pebble screenshot *)",
+      "Bash(git add *)",
+      "Bash(git check-ignore *)",
+      "Bash(python3 -c ' *)",
+      "Bash(node --test test/geo.test.js)",
+      "Bash(pebble emu-set-location *)",
+      "Bash(pebble send-app-message *)",
+      "Bash(rm -f pebble_screenshot_*.png)",
+      "Bash(git rm *)",
+      "Bash(git ls-remote *)",
+      "Bash(git checkout *)",
+      "Bash(node --test test/blob.test.js)",
+      "Bash(node --test test/refresh.test.js)",
+      "Bash(pebble emu-bt-connection *)",
+      "Bash(pebble kill *)",
+      "Bash(pkill -f qemu)",
+      "Bash(pkill -9 -f qemu)",
+      "Bash(pkill -9 -f pypkjs)",
+      "Bash(cd /Users/jaroland/Projects/pebble/pebble_tides *)",
+      "Bash(pkill -9 -f pebble)",
+      "Bash(pebble wipe *)",
+      "Bash(node --test test/merge.test.js)",
+      "Bash(node --test test/merge.test.js test/tides.test.js)",
+      "Bash(find ~ /tmp -iname \"*localstorage*\" 2>/dev/null | grep -iv chrome | head *)",
+      "Read(//Users/jaroland/**)",
+      "Read(//Users/jaroland/Library/**)",
+      "Read(//private/var/folders/**)",
+      "Bash(pebble emu-button *)",
+      "Bash(node --test test/sun.test.js)",
+      "Bash(node -e ' *)",
+      "Bash(npm view *)",
+      "Bash(timeout 20 npm pack pebble-clay --dry-run)"
+    ],
+    "additionalDirectories": [
+      "/Users/jaroland/Projects/pebble/pebble_tides"
+    ]
+  }
+}
