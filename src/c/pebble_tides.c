@@ -183,9 +183,9 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   time_t t0 = (time_t)s_pt_epoch[focus] - WINDOW_SECONDS / 2;
   time_t t1 = (time_t)s_pt_epoch[focus] + WINDOW_SECONDS / 2;
 
-  // Plot rect: extra inset on a round screen so labels stay on-glass.
-  int mx = PBL_IF_ROUND_ELSE(34, 8);
-  int x0 = mx, x1 = b.size.w - mx;
+  // Draw the curve and fill edge-to-edge horizontally; on a round screen the
+  // bezel clips the corners (intended). Only the inline labels clamp inward.
+  int x0 = 0, x1 = b.size.w;
   int y_top = PBL_IF_ROUND_ELSE(40, 26);
   int y_bottom = b.size.h - PBL_IF_ROUND_ELSE(40, 30);
   int plot_w = x1 - x0;
