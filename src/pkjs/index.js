@@ -11,6 +11,8 @@ var STATIONS = require('./stations');
 // a changed nearest station. The watch persists the blob and works offline.
 var IWLS_HOST = 'https://api-iwls.dfo-mpo.gc.ca';
 var WEEK_DAYS = 7;
+var BACK_DAYS = 1; // also pull one day of history so the centered window
+                   // always has curve to the left of "now"
 var CHUNK_SIZE = 64; // bytes per AppMessage; must match CHUNK_SIZE on the watch
 var META_KEY = 'cacheMeta';
 var LAST_STATION_KEY = 'lastStation';
@@ -93,9 +95,10 @@ function sendBlob(u8, stationId, onDone) {
 
 function fetchWeek(station, distanceKm) {
   var now = new Date();
+  var from = new Date(now.getTime() - BACK_DAYS * 24 * 60 * 60 * 1000);
   var to = new Date(now.getTime() + WEEK_DAYS * 24 * 60 * 60 * 1000);
-  var hiloUrl = seriesUrl(station.id, 'wlp-hilo', 'ALL', now, to);
-  var curveUrl = seriesUrl(station.id, 'wlp', 'SIXTY_MINUTES', now, to);
+  var hiloUrl = seriesUrl(station.id, 'wlp-hilo', 'ALL', from, to);
+  var curveUrl = seriesUrl(station.id, 'wlp', 'SIXTY_MINUTES', from, to);
 
   fetchJson(hiloUrl, function (e1, hilo) {
     if (e1 || !Array.isArray(hilo) || hilo.length === 0) {
