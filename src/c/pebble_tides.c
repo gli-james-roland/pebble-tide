@@ -28,6 +28,7 @@
 //   clock: 0 = 12-hour AM/PM (default), 1 = 24-hour
 #define PERSIST_CONFIG_UNITS 20
 #define PERSIST_CONFIG_CLOCK 21
+#define PERSIST_CONFIG_MIDTIDE 22
 #define UNITS_FEET 0
 #define UNITS_METRES 1
 #define CLOCK_12H 0
@@ -64,6 +65,7 @@ static int32_t s_sun_set[MAX_SUN_DAYS];
 // Display config (defaults: feet + 12-hour), overridden by the phone.
 static int s_units = UNITS_FEET;
 static int s_clock = CLOCK_12H;
+static int s_show_midtide = 1;   // mid-tide labels on by default
 
 // Chunk reassembly state
 static uint8_t s_rx_buf[MAX_BLOB_BYTES];
@@ -192,6 +194,8 @@ static void prv_load_config(void) {
       ? persist_read_int(PERSIST_CONFIG_UNITS) : UNITS_FEET;
   s_clock = persist_exists(PERSIST_CONFIG_CLOCK)
       ? persist_read_int(PERSIST_CONFIG_CLOCK) : CLOCK_12H;
+  s_show_midtide = persist_exists(PERSIST_CONFIG_MIDTIDE)
+      ? persist_read_int(PERSIST_CONFIG_MIDTIDE) : 1;
 }
 
 // Format a height (stored in cm, metric source of truth) into buf per s_units.
@@ -543,7 +547,7 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   // sits on the curve at each 50% crossing; the small time label appears only
   // when it clears the neighbouring extremum labels and the clipped edge zone.
   GFont mid_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
-  for (int i = 0; i < s_mid_count; i++) {
+  for (int i = 0; s_show_midtide && i < s_mid_count; i++) {
     int mx = x0 + (int)((long)(s_mid_epoch[i] - t0) * plot_w / WINDOW_SECONDS);
     int my = prv_map_y(s_mid_cm[i], y_top, y_bottom, lo, hi);
 
@@ -565,7 +569,7 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
     int mw = 64, mlx = mx - mw / 2;
     if (mlx < 0) { mlx = 0; }
     if (mlx + mw > b.size.w) { mlx = b.size.w - mw; }
-    graphics_context_set_text_color(ctx, PBL_IF_COLOR_ELSE(GColorLightGray, GColorWhite));
+    graphics_context_set_text_color(ctx, GColorWhite);
     graphics_draw_text(ctx, mlbl, mid_font, GRect(mlx, my - 20, mw, 16),
                        GTextOverflowModeFill, GTextAlignmentCenter, NULL);
   }
@@ -656,11 +660,16 @@ static bool prv_handle_config(DictionaryIterator *iter) {
   if (clock_t) {
     s_clock = clock_t->value->int32 == CLOCK_24H ? CLOCK_24H : CLOCK_12H;
   }
+  Tuple *mid_t = dict_find(iter, MESSAGE_KEY_CONFIG_MIDTIDE);
+  if (mid_t) {
+    s_show_midtide = mid_t->value->int32 ? 1 : 0;
+  }
   persist_write_int(PERSIST_CONFIG_UNITS, s_units);
   persist_write_int(PERSIST_CONFIG_CLOCK, s_clock);
+  persist_write_int(PERSIST_CONFIG_MIDTIDE, s_show_midtide);
   prv_update_chrome();
   layer_mark_dirty(s_graph_layer);
-  APP_LOG(APP_LOG_LEVEL_INFO, "Config: units=%d clock=%d", s_units, s_clock);
+  APP_LOG(APP_LOG_LEVEL_INFO, "Config: units=%d clock=%d mid=%d", s_units, s_clock, s_show_midtide);
   return true;
 }
 

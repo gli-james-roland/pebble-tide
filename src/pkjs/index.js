@@ -20,7 +20,7 @@ var STATIONS = require('./stations');
 function sendConfig() {
   var s = config.read();
   Pebble.sendAppMessage(
-    { CONFIG_UNITS: s.units, CONFIG_CLOCK: s.clock },
+    { CONFIG_UNITS: s.units, CONFIG_CLOCK: s.clock, CONFIG_MIDTIDE: s.midtide },
     function () { console.log('Config sent to watch'); },
     function (e) { console.log('Config send failed: ' + JSON.stringify(e)); }
   );
