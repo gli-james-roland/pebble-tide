@@ -7,10 +7,11 @@
 // at the highs and lows. Static focus on the next upcoming extremum;
 // navigation and the now-state arrive in #5/#6.
 
-#define BLOB_VERSION 2
+#define BLOB_VERSION 3
 #define CHUNK_SIZE 64            // must match CHUNK_SIZE in src/pkjs/index.js
 #define MAX_BLOB_BYTES 2048
 #define MAX_POINTS 256
+#define MAX_SUN_DAYS 16          // per-day sunrise/sunset; window is ~9 days
 #define MAX_WIN_POINTS 96
 #define MAX_DENSE 800            // smoothed (Catmull-Rom) curve samples
 #define SMOOTH_STEPS 8           // sub-samples per control segment
@@ -44,6 +45,10 @@ static int16_t s_pt_height[MAX_POINTS];
 static uint8_t s_pt_kind[MAX_POINTS]; // 0 plain, 1 HIGH, 2 LOW
 static int s_min_cm = 0;
 static int s_max_cm = 0;
+// Per-day sunrise/sunset (unix secs, UTC) for night shading (issue #8).
+static int s_sun_count = 0;
+static int32_t s_sun_rise[MAX_SUN_DAYS];
+static int32_t s_sun_set[MAX_SUN_DAYS];
 
 // Chunk reassembly state
 static uint8_t s_rx_buf[MAX_BLOB_BYTES];
@@ -111,6 +116,24 @@ static bool prv_parse_blob(const uint8_t *buf, int len) {
     if (s_pt_height[i] < s_min_cm) { s_min_cm = s_pt_height[i]; }
     if (s_pt_height[i] > s_max_cm) { s_max_cm = s_pt_height[i]; }
   }
+
+  // Sun section (v3): u8 day count, then per day i32 sunrise, i32 sunset.
+  s_sun_count = 0;
+  if (o < len) {
+    int sun_days = buf[o]; o += 1;
+    for (int i = 0; i < sun_days; i++) {
+      if (o + 8 > len) { break; }
+      int32_t rise, set;
+      memcpy(&rise, buf + o, 4); o += 4;
+      memcpy(&set, buf + o, 4); o += 4;
+      if (s_sun_count < MAX_SUN_DAYS) {
+        s_sun_rise[s_sun_count] = rise;
+        s_sun_set[s_sun_count] = set;
+        s_sun_count++;
+      }
+    }
+  }
+
   s_has_data = s_point_count > 0;
   return true;
 }
@@ -288,6 +311,18 @@ static bool prv_rising_at(int32_t e) {
   return true;
 }
 
+// Night if the epoch falls outside every day's daylight span. Spans are
+// [sunrise, sunset]; sunset can run past UTC midnight, so spans are checked
+// directly rather than bucketed by calendar day. Returns true when no daylight
+// span contains the time. With no sun data we report daylight (no shading).
+static bool prv_is_night(int32_t e) {
+  if (s_sun_count == 0) { return false; }
+  for (int i = 0; i < s_sun_count; i++) {
+    if (e >= s_sun_rise[i] && e <= s_sun_set[i]) { return false; }
+  }
+  return true;
+}
+
 static void prv_graph_update(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
   graphics_context_set_fill_color(ctx, GColorWhite);
@@ -309,6 +344,26 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   int pad = (s_max_cm - s_min_cm) / 10;
   if (pad < 15) { pad = 15; }
   int lo = s_min_cm - pad, hi = s_max_cm + pad;
+
+  // Night shading: a subtle overlay behind the water fill, curve, and markers
+  // so daylight tides read at a glance (issue #8). On colour a pale grey-blue;
+  // on B&W a sparse dotted column so the water fill still shows through.
+  if (s_sun_count > 0) {
+    GColor night = PBL_IF_COLOR_ELSE(GColorCeleste, GColorBlack);
+    graphics_context_set_stroke_color(ctx, night);
+    for (int x = x0; x <= x1; x++) {
+      int32_t t = (int32_t)(t0 + (long)(x - x0) * WINDOW_SECONDS / plot_w);
+      if (!prv_is_night(t)) { continue; }
+#if defined(PBL_COLOR)
+      graphics_draw_line(ctx, GPoint(x, y_top), GPoint(x, y_bottom));
+#else
+      // Sparse stipple keeps it subtle on black-and-white screens.
+      for (int y = y_top + (x & 3); y <= y_bottom; y += 4) {
+        graphics_draw_pixel(ctx, GPoint(x, y));
+      }
+#endif
+    }
+  }
 
   // Mid-tides: 50% crossings between the Focused Tide and each adjacent
   // extremum. Computed in data space here; drawn as subordinate ticks below.
