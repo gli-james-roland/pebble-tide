@@ -280,13 +280,10 @@ static void prv_update_chrome(void) {
   int f = s_focus_idx;
   time_t ft = (time_t)s_pt_epoch[f];
   struct tm *lt = localtime(&ft);
-  char tstr[12];
-  strftime(tstr, sizeof(tstr), prv_time_fmt(), lt);
-  snprintf(s_title_text, sizeof(s_title_text), "%s %s", s_pt_kind[f] == 1 ? "HIGH" : "LOW", tstr);
+  // Header is the focused day's date; high/low times are already on the graph.
+  strftime(s_title_text, sizeof(s_title_text), "%a %b %e", lt);
   text_layer_set_text(s_title_layer, s_title_text);
-
-  strftime(s_sub_text, sizeof(s_sub_text), "%a %b %e", lt);
-  text_layer_set_text(s_sub_layer, s_sub_text);
+  text_layer_set_text(s_sub_layer, "");
 
   text_layer_set_text(s_station_layer, s_station_name);
   prv_update_status();
