@@ -173,7 +173,7 @@ static void prv_format_height(int height_cm, char *buf, int buf_len) {
     // tenths of a foot, rounded: cm * 3.28084 / 100 * 10 = cm * 0.328084
     int neg = height_cm < 0;
     int acm = neg ? -height_cm : height_cm;
-    int tenths = (int)(((long)acm * 328084L + 50000L) / 100000L);
+    int tenths = (int)(((long)acm * 328084L + 500000L) / 1000000L);
     snprintf(buf, buf_len, "%s%d.%d ft", neg ? "-" : "", tenths / 10, tenths % 10);
   } else {
     int neg = height_cm < 0;
