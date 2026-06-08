@@ -1,0 +1,14 @@
+Pebble Tides shows the day's tides at a glance: a graph of the high and low tides with their exact times and heights, the current water level, whether the tide is rising or falling, and optional mid-tide times. It picks the tide station nearest your location and keeps working offline once a day of data is cached.
+
+Features:
+- Daily tide graph with high/low times and heights
+- Current level with a rising/falling indicator
+- Optional mid-tide times (off by default)
+- Sunrise and sunset night shading
+- Step through tides with the buttons; long-press to jump a day, Select to jump to now
+- Feet or metres, 12 or 24 hour clock, all set from the phone
+- Caches a week of predictions and refreshes once a day; works with the phone out of range
+
+Coverage: Pebble Tides currently supports the Pacific Northwest (British Columbia), using Fisheries and Oceans Canada (DFO) predictions. If you'd like another region added, let me know and I'm happy to look at adding it.
+
+Controls: Up/Down step tides, long-press Up/Down jump a day, Select jumps to now, Back exits.
