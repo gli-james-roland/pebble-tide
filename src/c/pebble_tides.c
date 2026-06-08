@@ -642,6 +642,9 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
       py = s_sy[i] + 8;
       if (py + ph > y_bottom) { py = s_sy[i] - ph - 8; }
     }
+    // Keep the pill inside the plot so it never overlaps the date header or footer.
+    if (py < y_top) { py = y_top; }
+    if (py + ph > y_bottom) { py = y_bottom - ph; }
     graphics_context_set_fill_color(ctx, pill_fill);
     graphics_fill_rect(ctx, GRect(px, py, pw, ph), 6, GCornersAll);
 #if !defined(PBL_COLOR)
