@@ -1,0 +1,34 @@
+# Continuous integration: run the unit tests and build the app on every pull
+# request and on pushes to master, so we know it compiles on all platforms.
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Pebble tool
+        run: pip install pebble-tool
+
+      - name: Install Pebble SDK + toolchain
+        run: pebble sdk install latest
+
+      - name: Unit tests
+        run: node --test
+
+      - name: Build (all platforms)
+        run: pebble build
