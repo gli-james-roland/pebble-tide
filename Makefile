@@ -1,5 +1,5 @@
 # Convenience wrappers around the Pebble SDK toolchain.
-.PHONY: build install clean test release publish
+.PHONY: build install clean test release publish screenshots
 
 build:        ## build the .pbw for all platforms
 	pebble build
@@ -20,3 +20,6 @@ release: build ## cut a GitHub release with the .pbw (tag vX.Y.Z from package.js
 
 publish:      ## build + publish to the repebble appstore (run `pebble login` first)
 	./scripts/publish.sh
+
+screenshots:  ## capture fresh store screenshots into screenshots/ (emulators)
+	./scripts/screenshots.sh

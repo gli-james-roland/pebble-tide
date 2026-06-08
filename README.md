@@ -88,6 +88,7 @@ make build      # build the .pbw
 make install    # build + run on the gabbro emulator
 make test       # run the JS unit tests
 make release    # cut a GitHub release with the .pbw (tag from package.json)
+make screenshots# capture fresh store screenshots into screenshots/
 make publish    # build + upload to the repebble appstore
 ```
 
