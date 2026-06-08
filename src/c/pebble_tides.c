@@ -91,7 +91,6 @@ static int s_focus_idx = -1;        // index into points of the Focused Tide
 static int32_t s_center_epoch = 0;  // animated window-center time
 static Animation *s_pan_anim = NULL;
 static int32_t s_pan_from = 0, s_pan_to = 0;
-static bool s_pan_active = false;  // true while a curve-pan animation runs
 
 // ---------------------------------------------------------------------------
 // Parsing
@@ -480,15 +479,10 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
         for (int yy = y_top; yy < y; yy++) { if (((x + yy) & 1) == 0) graphics_draw_pixel(ctx, GPoint(x, yy)); }
       }
       graphics_context_set_stroke_color(ctx, TIDE_COLOR);
-      if (s_pan_active) {
-        // Cheap solid fill during the pan; full Bayer gradient when settled.
-        graphics_draw_line(ctx, GPoint(x, y), GPoint(x, y_bottom));
-      } else {
-        int ph = y_bottom - y_top;
-        for (int yy = y; yy <= y_bottom; yy++) {
-          int op = ph > 0 ? 16 - (yy - y_top) * 16 / ph : 16;
-          if (BAYER4[yy & 3][x & 3] < op) { graphics_draw_pixel(ctx, GPoint(x, yy)); }
-        }
+      int ph = y_bottom - y_top;
+      for (int yy = y; yy <= y_bottom; yy++) {
+        int op = ph > 0 ? 16 - (yy - y_top) * 16 / ph : 16;
+        if (BAYER4[yy & 3][x & 3] < op) { graphics_draw_pixel(ctx, GPoint(x, yy)); }
       }
 #else
       if (night && y > y_top) {
@@ -497,12 +491,10 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
           graphics_draw_pixel(ctx, GPoint(x, yy));
         }
       }
-      // B&W water: sparse white speckle below the curve (skipped while panning).
-      if (!s_pan_active) {
-        graphics_context_set_stroke_color(ctx, GColorWhite);
-        for (int yy = y; yy <= y_bottom; yy++) {
-          if (((x * 2 + yy) & 7) == 0) { graphics_draw_pixel(ctx, GPoint(x, yy)); }
-        }
+      // B&W water: sparse white speckle below the curve.
+      graphics_context_set_stroke_color(ctx, GColorWhite);
+      for (int yy = y; yy <= y_bottom; yy++) {
+        if (((x * 2 + yy) & 7) == 0) { graphics_draw_pixel(ctx, GPoint(x, yy)); }
       }
 #endif
     }
@@ -739,14 +731,7 @@ static void prv_anim_update(Animation *a, AnimationProgress prog) {
   layer_mark_dirty(s_graph_layer);
 }
 
-static void prv_anim_teardown(Animation *a) {
-  s_pan_active = false;          // settled: redraw at full water quality
-  layer_mark_dirty(s_graph_layer);
-}
-
-static const AnimationImplementation s_anim_impl = {
-  .update = prv_anim_update, .teardown = prv_anim_teardown
-};
+static const AnimationImplementation s_anim_impl = { .update = prv_anim_update };
 
 // Pan the window center toward target_epoch. A press mid-pan cancels and
 // retargets from the current interpolated center (no queueing).
@@ -762,7 +747,6 @@ static void prv_pan_to(int32_t target_epoch) {
   animation_set_implementation(s_pan_anim, &s_anim_impl);
   animation_set_duration(s_pan_anim, 250);
   animation_set_curve(s_pan_anim, AnimationCurveEaseInOut);
-  s_pan_active = true;
   animation_schedule(s_pan_anim);
 }
 
