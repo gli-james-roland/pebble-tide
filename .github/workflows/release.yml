@@ -24,6 +24,8 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -50,7 +52,7 @@ jobs:
       - name: Attach .pbw to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.event.release.tag_name }}" build/pebble_tides.pbw --clobber
+        run: gh release upload "${{ github.event.release.tag_name }}" build/*.pbw --clobber
 
       - name: Publish to the repebble appstore
         env:

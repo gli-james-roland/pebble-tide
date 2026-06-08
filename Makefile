@@ -16,7 +16,7 @@ clean:
 VERSION := $(shell python3 -c "import json;print(json.load(open('package.json'))['version'])")
 
 release: build ## cut a GitHub release with the .pbw (tag vX.Y.Z from package.json)
-	gh release create v$(VERSION) build/pebble_tides.pbw --title "Pebble Tides $(VERSION)" --generate-notes
+	gh release create v$(VERSION) build/*.pbw --title "Pebble Tides $(VERSION)" --generate-notes
 
 publish:      ## build + publish to the repebble appstore (run `pebble login` first)
 	./scripts/publish.sh
