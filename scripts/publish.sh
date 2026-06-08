@@ -10,7 +10,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-CATEGORY="${PEBBLE_CATEGORY:-Tools}"   # adjust to a valid appstore category key
+CATEGORY="${PEBBLE_CATEGORY:-Tools & Utilities}"
 NAME="Pebble Tides"
 VERSION="$(python3 -c "import json;print(json.load(open('package.json'))['version'])")"
 
