@@ -584,7 +584,7 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
   // Markers: black centre, tide-coloured ring. Labels are coloured pills
   // (HIGH = tide blue, LOW = pink) with white time + height. (Dark-theme
   // experiment.)
-  GFont pill_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+  GFont pill_font = fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
   bool small_screen = b.size.w < 160;  // 144px rect: show only the focused pill
   for (int i = 0; i < n; i++) {
     if (s_sk[i] == 0) { continue; }

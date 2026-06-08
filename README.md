@@ -16,6 +16,12 @@ IWLS service and cover the British Columbia coast.
   whether the tide is rising or falling, and mid-tide times.
 - Computes sunrise and sunset on-device and shades the night hours.
 
+## Screenshots
+
+| Pebble Round 2 (gabbro) | Pebble Time 2 (emery) | Time Round (chalk) | Black & white (diorite) |
+|---|---|---|---|
+| ![gabbro](screenshots/gabbro.png) | ![emery](screenshots/emery.png) | ![chalk](screenshots/chalk.png) | ![diorite](screenshots/diorite.png) |
+
 ## Controls
 
 - **Up / Down**: step to the previous / next tide (the window re-centres with a
@@ -82,6 +88,7 @@ make build      # build the .pbw
 make install    # build + run on the gabbro emulator
 make test       # run the JS unit tests
 make release    # cut a GitHub release with the .pbw (tag from package.json)
+make screenshots# capture fresh store screenshots into screenshots/
 make publish    # build + upload to the repebble appstore
 ```
 
@@ -95,3 +102,7 @@ release visible immediately:
 ```sh
 scripts/publish.sh --is-published
 ```
+
+Releases are manual: run `make publish` (or `make release`) from a machine where
+you've run `pebble login`. There is no CI auto-publish, because the appstore
+login needs an interactive browser step that can't run headless.
