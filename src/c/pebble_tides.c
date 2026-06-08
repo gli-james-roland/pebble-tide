@@ -65,7 +65,7 @@ static int32_t s_sun_set[MAX_SUN_DAYS];
 // Display config (defaults: feet + 12-hour), overridden by the phone.
 static int s_units = UNITS_FEET;
 static int s_clock = CLOCK_12H;
-static int s_show_midtide = 1;   // mid-tide labels on by default
+static int s_show_midtide = 0;   // mid-tide labels off by default
 
 // Chunk reassembly state
 static uint8_t s_rx_buf[MAX_BLOB_BYTES];
@@ -195,7 +195,7 @@ static void prv_load_config(void) {
   s_clock = persist_exists(PERSIST_CONFIG_CLOCK)
       ? persist_read_int(PERSIST_CONFIG_CLOCK) : CLOCK_12H;
   s_show_midtide = persist_exists(PERSIST_CONFIG_MIDTIDE)
-      ? persist_read_int(PERSIST_CONFIG_MIDTIDE) : 1;
+      ? persist_read_int(PERSIST_CONFIG_MIDTIDE) : 0;
 }
 
 // Format a height (stored in cm, metric source of truth) into buf per s_units.
@@ -642,6 +642,9 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
       py = s_sy[i] + 8;
       if (py + ph > y_bottom) { py = s_sy[i] - ph - 8; }
     }
+    // Keep the pill inside the plot so it never overlaps the date header or footer.
+    if (py < y_top) { py = y_top; }
+    if (py + ph > y_bottom) { py = y_bottom - ph; }
     graphics_context_set_fill_color(ctx, pill_fill);
     graphics_fill_rect(ctx, GRect(px, py, pw, ph), 6, GCornersAll);
 #if !defined(PBL_COLOR)
