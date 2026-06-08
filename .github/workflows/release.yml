@@ -54,9 +54,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ github.event.release.tag_name }}" build/*.pbw --clobber
 
+      - name: Authenticate with the appstore (refresh token)
+        env:
+          PEBBLE_REFRESH_TOKEN: ${{ secrets.PEBBLE_REFRESH_TOKEN }}
+          PEBBLE_FIREBASE_API_KEY: ${{ secrets.PEBBLE_FIREBASE_API_KEY }}
+        run: pebble login --refresh-token "$PEBBLE_REFRESH_TOKEN" --firebase-api-key "$PEBBLE_FIREBASE_API_KEY"
+
       - name: Publish to the repebble appstore
         env:
-          PEBBLE_FIREBASE_ID_TOKEN: ${{ secrets.PEBBLE_FIREBASE_ID_TOKEN }}
           PEBBLE_CATEGORY: ${{ vars.PEBBLE_CATEGORY || 'Tools' }}
           RELEASE_NOTES: ${{ github.event.release.body }}
         run: ./scripts/publish.sh --is-published
