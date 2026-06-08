@@ -65,7 +65,7 @@ static int32_t s_sun_set[MAX_SUN_DAYS];
 // Display config (defaults: feet + 12-hour), overridden by the phone.
 static int s_units = UNITS_FEET;
 static int s_clock = CLOCK_12H;
-static int s_show_midtide = 1;   // mid-tide labels on by default
+static int s_show_midtide = 0;   // mid-tide labels off by default
 
 // Chunk reassembly state
 static uint8_t s_rx_buf[MAX_BLOB_BYTES];
@@ -195,7 +195,7 @@ static void prv_load_config(void) {
   s_clock = persist_exists(PERSIST_CONFIG_CLOCK)
       ? persist_read_int(PERSIST_CONFIG_CLOCK) : CLOCK_12H;
   s_show_midtide = persist_exists(PERSIST_CONFIG_MIDTIDE)
-      ? persist_read_int(PERSIST_CONFIG_MIDTIDE) : 1;
+      ? persist_read_int(PERSIST_CONFIG_MIDTIDE) : 0;
 }
 
 // Format a height (stored in cm, metric source of truth) into buf per s_units.

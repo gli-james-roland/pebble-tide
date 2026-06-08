@@ -10,7 +10,7 @@
 //   units: 0 = feet (default), 1 = metres
 //   clock: 0 = 12-hour AM/PM (default), 1 = 24-hour
 var STORE_KEY = 'tideConfig';
-var DEFAULTS = { units: 0, clock: 0, midtide: 1 };  // mid-tide times ON by default
+var DEFAULTS = { units: 0, clock: 0, midtide: 0 };  // mid-tide times OFF by default
 
 function read() {
   try {
@@ -20,7 +20,7 @@ function read() {
     return {
       units: s.units === 1 ? 1 : 0,
       clock: s.clock === 1 ? 1 : 0,
-      midtide: s.midtide === 0 ? 0 : 1,
+      midtide: s.midtide === 1 ? 1 : 0,
     };
   } catch (e) {
     return { units: DEFAULTS.units, clock: DEFAULTS.clock, midtide: DEFAULTS.midtide };
@@ -35,7 +35,7 @@ function save(response) {
     var next = {
       units: parsed.units === 1 ? 1 : 0,
       clock: parsed.clock === 1 ? 1 : 0,
-      midtide: parsed.midtide === 0 ? 0 : 1,
+      midtide: parsed.midtide === 1 ? 1 : 0,
     };
     localStorage.setItem(STORE_KEY, JSON.stringify(next));
     return next;
