@@ -1,21 +1,24 @@
 # Pebble Tides
 
-A Pebble watchapp that shows a day's predicted tides — exact high/low times and a curve — for the user's nearest Canadian tide station. Data comes from the Canadian DFO IWLS prediction API.
+A Pebble watchapp that shows a day's predicted tides — exact high/low times and a curve — for the user's nearest tide station. Stations come from two Providers: the Canadian DFO IWLS API and the US NOAA CO-OPS API.
 
 ## Language
 
+**Provider**:
+A tide-prediction data source the app can pull from. Two exist: **DFO** (Canada, IWLS) and **NOAA** (US, CO-OPS). Every Station belongs to exactly one Provider, which determines its `id` namespace, the endpoint used to fetch its predictions, and the response shape that must be normalised before use.
+
 **Station**:
-A DFO tide-prediction location with a fixed latitude/longitude, identified by an `id` (used in API calls) and shown to the user by its `officialName`. The app picks the one nearest the user's current position.
+A tide-prediction location with a fixed latitude/longitude, belonging to one Provider, identified by an `id` (used in that Provider's API calls) and shown to the user by its `officialName`. The app picks the one nearest the user's current position, across both Providers.
 _Avoid_: Site, location, port.
 
 **Nearest Station**:
 The single **Usable Station** with the smallest great-circle distance to the user's current position. The app tracks tides for exactly one Station at a time — the Nearest Station.
 
 **Usable Station**:
-A Station with `operating: true`. `operating` comes from the DFO API itself. Station selection considers only Usable Stations; `operating: false` stations are never fetched.
+A Station the app is willing to fetch hilo predictions for. The criteria are Provider-specific: a **DFO** Station is Usable when `operating: true` **and** its `timeSeries` advertises the `wlp-hilo` product; a **NOAA** Station is Usable when it appears in the `type=tidepredictions` catalog (both reference and subordinate stations qualify — subordinate stations still return valid predictions). Station selection considers only Usable Stations; others are never fetched.
 
 **Station List**:
-The set of Stations in [src/resources/tide_stations.json](src/resources/tide_stations.json) (moving into pkjs). It is a **hand-trimmed subset** of the full DFO station set — the maintainer manually removed stations the app should never consider. The API exposes more stations than appear here; absence from the Station List is intentional, not an oversight.
+The set of Usable Stations the app selects from. Loaded **dynamically** by fetching each Provider's full catalog (DFO IWLS, NOAA MDAPI), filtering to Usable Stations, and merging into one Provider-tagged list. The merged list is cached on the phone and refreshed on a slow cadence (catalogs change rarely). A small bundled snapshot is the offline / first-run fallback. (Supersedes the original hand-trimmed BC-only subset; coverage is now provider-defined, not hand-curated.)
 
 **Tide Prediction**:
 A modelled future water level, as opposed to an observed measurement. This app uses predictions only.
