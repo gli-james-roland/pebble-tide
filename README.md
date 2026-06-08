@@ -72,3 +72,26 @@ and converted at render time.
 ## Documentation
 
 Full SDK docs and API reference: <https://developer.repebble.com>
+
+## Updating / publishing
+
+The build and appstore upload are scriptable with the Pebble CLI.
+
+```sh
+make build      # build the .pbw
+make install    # build + run on the gabbro emulator
+make test       # run the JS unit tests
+make release    # cut a GitHub release with the .pbw (tag from package.json)
+make publish    # build + upload to the repebble appstore
+```
+
+`make publish` runs `scripts/publish.sh`, which builds and calls `pebble publish`
+with the name, version (from `package.json`), description (`store/description.txt`),
+icons (`resources/images/`), and the screenshots in `screenshots/`. Run
+`pebble login` once first (or set `PEBBLE_FIREBASE_ID_TOKEN` for CI), and set a
+valid appstore `CATEGORY` in the script. Add `--is-published` to make the
+release visible immediately:
+
+```sh
+scripts/publish.sh --is-published
+```
