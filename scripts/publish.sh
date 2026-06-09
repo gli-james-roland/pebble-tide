@@ -29,7 +29,12 @@ if compgen -G "screenshots/*.png" >/dev/null; then
 fi
 
 echo "Publishing $NAME $VERSION ..."
-pebble publish \
+# Publish through the wrapper so existing appstore screenshots are REPLACED, not
+# appended to (pebble-tool hardcodes replaceScreenshots=false, which duplicates
+# them on every publish). Run it with the same interpreter that backs the
+# `pebble` launcher so pebble_tool is importable. cwd is the repo root here.
+PEBBLE_PY="$(sed -n '1s/^#!//p' "$(command -v pebble)")"
+"$PEBBLE_PY" scripts/pebble_publish.py \
   --non-interactive \
   --no-gif-all-platforms \
   --name "$NAME" \
