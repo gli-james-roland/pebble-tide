@@ -16,10 +16,8 @@ test-live:    ## run unit tests + live NOAA API smoke tests (needs network)
 clean:
 	pebble clean
 
-VERSION := $(shell python3 -c "import json;print(json.load(open('package.json'))['version'])")
-
-release: build ## cut a GitHub release with the .pbw (tag vX.Y.Z from package.json)
-	gh release create v$(VERSION) build/*.pbw --title "Pebble Tides $(VERSION)" --generate-notes
+release:      ## bump version (BUMP=patch|minor|major), commit to master, cut GitHub release
+	./scripts/release.sh
 
 publish:      ## build + publish to the repebble appstore (run `pebble login` first)
 	./scripts/publish.sh
