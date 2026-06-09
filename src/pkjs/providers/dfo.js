@@ -21,6 +21,9 @@ function hiloUrl(station, from, to) {
 }
 
 function parseHilo(json) {
+  if (!Array.isArray(json)) {
+    return [];
+  }
   return tides.classifyExtrema(json).map(function (x) {
     return { epoch: x.epoch, heightCm: x.heightCm, kind: x.type === 'HIGH' ? 1 : 2 };
   });
