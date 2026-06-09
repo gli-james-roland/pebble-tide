@@ -44,5 +44,6 @@ module.exports = [
   {"provider":"dfo","id":"5cebf1e13d0f4a073c4bbf93","officialName":"New Westminster","operating":true,"latitude":49.2,"longitude":-122.91},
   {"provider":"dfo","id":"5cebf1e43d0f4a073c4bc434","officialName":"Calamity Point","operating":true,"latitude":49.31257,"longitude":-123.127678},
   {"provider":"dfo","id":"5cebf1de3d0f4a073c4bba44","officialName":"Masset","operating":true,"latitude":54.01,"longitude":-132.149},
-  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bb94c","officialName":"Point Atkinson","operating":true,"latitude":49.3375,"longitude":-123.253583}
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bb94c","officialName":"Point Atkinson","operating":true,"latitude":49.3375,"longitude":-123.253583},
+  {"provider":"noaa","id":"9447130","officialName":"Seattle","operating":true,"latitude":47.602638,"longitude":-122.339432}
 ];

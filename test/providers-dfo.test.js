@@ -50,12 +50,13 @@ test('registry forStation returns the dfo adapter for a dfo station', () => {
 });
 
 test('registry forStation throws on an unknown provider', () => {
-  assert.throws(() => providers.forStation({ provider: 'noaa' }), /provider/i);
+  assert.throws(() => providers.forStation({ provider: 'bogus' }), /provider/i);
 });
 
-test('every seed station carries provider "dfo"', () => {
+test('every seed station carries a known provider', () => {
   assert.ok(STATIONS.length > 0);
   for (const s of STATIONS) {
-    assert.strictEqual(s.provider, 'dfo', s.officialName + ' must be a dfo station');
+    assert.ok(s.provider === 'dfo' || s.provider === 'noaa',
+      s.officialName + ' must carry a known provider');
   }
 });
