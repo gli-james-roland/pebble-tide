@@ -1,8 +1,13 @@
 {
   "name": "pebble_tides",
   "author": "James Roland",
-  "version": "1.0.1",
-  "keywords": ["pebble-app", "Tides", "Pacific", "Northwest"],
+  "version": "1.0.2",
+  "keywords": [
+    "pebble-app",
+    "Tides",
+    "Pacific",
+    "Northwest"
+  ],
   "private": true,
   "dependencies": {},
   "pebble": {
