@@ -25,10 +25,12 @@ pebble build
 # uploaded under a bogus platform name.
 PLATFORMS="$(python3 -c "import json;print(' '.join(json.load(open('package.json'))['pebble']['targetPlatforms']))")"
 SHOTS=()
-if compgen -G "screenshots/*.png" >/dev/null; then
+if compgen -G "screenshots/*.png" >/dev/null || compgen -G "screenshots/*.gif" >/dev/null; then
   STAGE="$(mktemp -d)"
-  for f in screenshots/*.png; do
-    base="$(basename "$f" .png)"           # e.g. chalk-seattle or chalk
+  for f in screenshots/*.png screenshots/*.gif; do
+    [ -e "$f" ] || continue                # skip the literal glob if a type is absent
+    ext="${f##*.}"                         # png or gif (pebble publish accepts both)
+    base="$(basename "$f" ".$ext")"        # e.g. chalk-seattle, chalk-animated, chalk
     plat="${base%%-*}"                     # platform = text before first "-"
     variant="${base#*-}"                   # text after first "-"
     [ "$variant" = "$base" ] && variant="main"   # no "-" -> default variant
@@ -36,7 +38,7 @@ if compgen -G "screenshots/*.png" >/dev/null; then
       *" $plat "*) ;;
       *) echo "warning: skipping $f (unknown platform '$plat')" >&2; continue ;;
     esac
-    staged="$STAGE/${plat}_${variant}_screenshot.png"
+    staged="$STAGE/${plat}_${variant}_screenshot.${ext}"
     cp "$f" "$staged"
     SHOTS+=("$staged")
   done
