@@ -172,8 +172,29 @@ function maybeLoadNoaaCatalog() {
   });
 }
 
+// Opportunistic DFO catalog load: same shape as maybeLoadNoaaCatalog. If the
+// dfo slice is absent, fetch + parse + store it so selection runs over the full
+// Canadian list rather than the BC seed. Full refresh orchestration
+// (TTL/version/failure isolation, first-run awaiting) is #35; this seeds the
+// slice once, fire-and-forget.
+function maybeLoadDfoCatalog() {
+  if (catalog.readCache(localStorage).dfo) {
+    return;
+  }
+  var dfo = providers.REGISTRY.dfo;
+  fetchJson(dfo.catalogUrl(), function (err, json) {
+    if (err) {
+      console.log('DFO catalog fetch failed (' + err + '); keeping seed');
+      return;
+    }
+    catalog.writeSlice(localStorage, 'dfo', dfo.parseCatalog(json), Date.now());
+    console.log('DFO catalog cached');
+  });
+}
+
 function onPosition(pos) {
   maybeLoadNoaaCatalog();
+  maybeLoadDfoCatalog();
   var result = selectStation(pos.coords.latitude, pos.coords.longitude);
   if (!result) {
     console.log('No usable station found');

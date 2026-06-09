@@ -60,3 +60,51 @@ test('every seed station carries a known provider', () => {
       s.officialName + ' must carry a known provider');
   }
 });
+
+test('catalogUrl points at the DFO IWLS stations list', () => {
+  assert.strictEqual(dfo.catalogUrl(), 'https://api-iwls.dfo-mpo.gc.ca/api/v1/stations');
+});
+
+test('parseCatalog keeps only operating stations advertising wlp-hilo, trimmed', () => {
+  const json = [
+    { id: 'aaa', officialName: 'Halifax', latitude: 44.66, longitude: -63.58,
+      operating: true, timeSeries: [{ code: 'wlp' }, { code: 'wlp-hilo' }] },
+    { id: 'bbb', officialName: 'NoHilo', latitude: 45.0, longitude: -64.0,
+      operating: true, timeSeries: [{ code: 'wlp' }] },
+    { id: 'ccc', officialName: 'NotOperating', latitude: 46.0, longitude: -65.0,
+      operating: false, timeSeries: [{ code: 'wlp-hilo' }] },
+    { id: 'ddd', officialName: 'EmptySeries', latitude: 47.0, longitude: -66.0,
+      operating: true, timeSeries: [] },
+    { id: 'eee', officialName: 'MissingSeries', latitude: 48.0, longitude: -67.0,
+      operating: true },
+  ];
+  const records = dfo.parseCatalog(json);
+  assert.strictEqual(records.length, 1, 'only the operating wlp-hilo station is kept');
+  assert.deepStrictEqual(records, [
+    { id: 'aaa', name: 'Halifax', lat: 44.66, lng: -63.58, provider: 'dfo' },
+  ]);
+  assert.strictEqual(records[0].id, 'aaa', 'keeps the full original DFO id string');
+});
+
+test('parseCatalog returns [] for non-array input', () => {
+  assert.deepStrictEqual(dfo.parseCatalog(undefined), []);
+  assert.deepStrictEqual(dfo.parseCatalog(null), []);
+  assert.deepStrictEqual(dfo.parseCatalog({}), []);
+  assert.deepStrictEqual(dfo.parseCatalog({ stations: [] }), []);
+});
+
+test('a dfo cache slice with an Atlantic station is selected at that coordinate', () => {
+  const catalog = require('../src/pkjs/catalog');
+  const geo = require('../src/pkjs/geo');
+  const cache = {
+    dfo: {
+      stations: [{ id: 'aaa', name: 'Halifax', lat: 44.66, lng: -63.58, provider: 'dfo' }],
+      fetchedAt: 1,
+    },
+  };
+  const candidates = catalog.unionStations(cache, STATIONS);
+  const result = geo.nearestUsableStation(candidates, 44.65, -63.57);
+  assert.ok(result, 'a station is selected');
+  assert.strictEqual(result.station.id, 'aaa', 'picks the Atlantic-coast catalog station');
+  assert.strictEqual(result.station.officialName, 'Halifax');
+});
