@@ -6,6 +6,7 @@
 
 var REGISTRY = {
   dfo: require('./dfo'),
+  noaa: require('./noaa'),
 };
 
 function forStation(station) {
