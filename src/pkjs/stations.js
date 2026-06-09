@@ -2,292 +2,47 @@
 
 // Hand-trimmed subset of DFO IWLS stations (see CONTEXT.md: Station List).
 // Generated from the original tide_stations.json. `operating` is the DFO flag.
+// Every station carries a `provider` tag so fetches route to an adapter (#31).
 module.exports = [
-  {
-    "id": "603023f41113077897271273",
-    "officialName": "Pembina Terminal",
-    "operating": true,
-    "latitude": 54.236287,
-    "longitude": -130.303479
-  },
-  {
-    "id": "5cebf1de3d0f4a073c4bb91e",
-    "officialName": "Hartley Bay",
-    "operating": true,
-    "latitude": 53.424213,
-    "longitude": -129.251877
-  },
-  {
-    "id": "5cebf1e23d0f4a073c4bc0b7",
-    "officialName": "Bella Coola",
-    "operating": false,
-    "latitude": 52.374,
-    "longitude": -126.796
-  },
-  {
-    "id": "5cebf1e43d0f4a073c4bc45a",
-    "officialName": "Ambleside",
-    "operating": true,
-    "latitude": 49.32577,
-    "longitude": -123.15458
-  },
-  {
-    "id": "5cebf1e43d0f4a073c4bc404",
-    "officialName": "Kitsilano",
-    "operating": true,
-    "latitude": 49.276583,
-    "longitude": -123.13936
-  },
-  {
-    "id": "5cebf1e23d0f4a073c4bc060",
-    "officialName": "Port Renfrew",
-    "operating": true,
-    "latitude": 48.555,
-    "longitude": -124.421
-  },
-  {
-    "id": "5cebf1e23d0f4a073c4bc062",
-    "officialName": "Bamfield",
-    "operating": true,
-    "latitude": 48.836,
-    "longitude": -125.136
-  },
-  {
-    "id": "5cebf1de3d0f4a073c4bba06",
-    "officialName": "Prince Rupert",
-    "operating": true,
-    "latitude": 54.317,
-    "longitude": -130.324
-  },
-  {
-    "id": "5cebf1e23d0f4a073c4bc06f",
-    "officialName": "Port Alberni",
-    "operating": true,
-    "latitude": 49.225621,
-    "longitude": -124.813613
-  },
-  {
-    "id": "5cebf1e13d0f4a073c4bbf8c",
-    "officialName": "Steveston",
-    "operating": true,
-    "latitude": 49.1245,
-    "longitude": -123.1922
-  },
-  {
-    "id": "5cebf1df3d0f4a073c4bbd1e",
-    "officialName": "Victoria Harbour",
-    "operating": true,
-    "latitude": 48.424666,
-    "longitude": -123.3707
-  },
-  {
-    "id": "5cebf1de3d0f4a073c4bba3e",
-    "officialName": "Daajing Giids",
-    "operating": true,
-    "latitude": 53.252,
-    "longitude": -132.072
-  },
-  {
-    "id": "5cebf1e23d0f4a073c4bc075",
-    "officialName": "Ucluelet",
-    "operating": true,
-    "latitude": 48.947,
-    "longitude": -125.552
-  },
-  {
-    "id": "5cebf1de3d0f4a073c4bb925",
-    "officialName": "Kitimat",
-    "operating": true,
-    "latitude": 53.989,
-    "longitude": -128.696
-  },
-  {
-    "id": "5cebf1de3d0f4a073c4bb996",
-    "officialName": "Campbell River",
-    "operating": true,
-    "latitude": 50.042,
-    "longitude": -125.247
-  },
-  {
-    "id": "5cebf1e43d0f4a073c4bc447",
-    "officialName": "Aero Trading",
-    "operating": false,
-    "latitude": 54.212997,
-    "longitude": -130.288383
-  },
-  {
-    "id": "5cebf1de3d0f4a073c4bb943",
-    "officialName": "Vancouver",
-    "operating": true,
-    "latitude": 49.2863,
-    "longitude": -123.0997
-  },
-  {
-    "id": "5cebf1de3d0f4a073c4bba0c",
-    "officialName": "Gingolx",
-    "operating": true,
-    "latitude": 54.999,
-    "longitude": -129.978
-  },
-  {
-    "id": "5cebf1e43d0f4a073c4bc40e",
-    "officialName": "Darrell Bay",
-    "operating": true,
-    "latitude": 49.669,
-    "longitude": -123.169
-  },
-  {
-    "id": "5cebf1de3d0f4a073c4bb9c7",
-    "officialName": "Port Hardy",
-    "operating": true,
-    "latitude": 50.722,
-    "longitude": -127.489
-  },
-  {
-    "id": "5cebf1df3d0f4a073c4bbd2d",
-    "officialName": "Patricia Bay",
-    "operating": true,
-    "latitude": 48.6536,
-    "longitude": -123.4515
-  },
-  {
-    "id": "5cebf1e43d0f4a073c4bc44d",
-    "officialName": "Porpoise Channel East",
-    "operating": true,
-    "latitude": 54.21515,
-    "longitude": -130.28906
-  },
-  {
-    "id": "5cebf1e43d0f4a073c4bc43b",
-    "officialName": "Sandy Cove",
-    "operating": true,
-    "latitude": 49.3405,
-    "longitude": -123.2319
-  },
-  {
-    "id": "5cebf1e23d0f4a073c4bc0c2",
-    "officialName": "Bella Bella",
-    "operating": true,
-    "latitude": 52.163,
-    "longitude": -128.143
-  },
-  {
-    "id": "5cebf1de3d0f4a073c4bb93c",
-    "officialName": "Sand Heads",
-    "operating": true,
-    "latitude": 49.1052,
-    "longitude": -123.3042
-  },
-  {
-    "id": "5cebf1e23d0f4a073c4bc097",
-    "officialName": "Winter Harbour",
-    "operating": true,
-    "latitude": 50.513,
-    "longitude": -128.029
-  },
-  {
-    "id": "5cebf1df3d0f4a073c4bbd26",
-    "officialName": "Sidney",
-    "operating": true,
-    "latitude": 48.649216,
-    "longitude": -123.3929
-  },
-  {
-    "id": "5dd30650e0fdc4b9b4be6dc4",
-    "officialName": "Fairview Terminal",
-    "operating": true,
-    "latitude": 54.290263,
-    "longitude": -130.359937
-  },
-  {
-    "id": "5dd30650e0fdc4b9b4be6dfe",
-    "officialName": "Pruth Bay",
-    "operating": true,
-    "latitude": 51.654504,
-    "longitude": -128.129455
-  },
-  {
-    "id": "5cebf1de3d0f4a073c4bba2d",
-    "officialName": "Rose Harbour",
-    "operating": true,
-    "latitude": 52.1552,
-    "longitude": -131.0909
-  },
-  {
-    "id": "5cebf1e43d0f4a073c4bc469",
-    "officialName": "Prince Rupert RoRo",
-    "operating": true,
-    "latitude": 54.234885,
-    "longitude": -130.335097
-  },
-  {
-    "id": "5cebf1e43d0f4a073c4bc42d",
-    "officialName": "Woodward's Landing",
-    "operating": true,
-    "latitude": 49.1251,
-    "longitude": -123.0754
-  },
-  {
-    "id": "5cebf1e43d0f4a073c4bc453",
-    "officialName": "Seal Cove",
-    "operating": false,
-    "latitude": 54.3311,
-    "longitude": -130.2796
-  },
-  {
-    "id": "5cebf1de3d0f4a073c4bb96d",
-    "officialName": "Nanaimo Harbour",
-    "operating": true,
-    "latitude": 49.1628,
-    "longitude": -123.9235
-  },
-  {
-    "id": "5cebf1de3d0f4a073c4bb94a",
-    "officialName": "Port Moody",
-    "operating": true,
-    "latitude": 49.2877,
-    "longitude": -122.86583
-  },
-  {
-    "id": "5dd3064ee0fdc4b9b4be6717",
-    "officialName": "Indian Arm Head",
-    "operating": true,
-    "latitude": 49.4618,
-    "longitude": -122.8861
-  },
-  {
-    "id": "5cebf1e23d0f4a073c4bc07c",
-    "officialName": "Tofino",
-    "operating": true,
-    "latitude": 49.154,
-    "longitude": -125.913
-  },
-  {
-    "id": "5cebf1e13d0f4a073c4bbf93",
-    "officialName": "New Westminster",
-    "operating": true,
-    "latitude": 49.2,
-    "longitude": -122.91
-  },
-  {
-    "id": "5cebf1e43d0f4a073c4bc434",
-    "officialName": "Calamity Point",
-    "operating": true,
-    "latitude": 49.31257,
-    "longitude": -123.127678
-  },
-  {
-    "id": "5cebf1de3d0f4a073c4bba44",
-    "officialName": "Masset",
-    "operating": true,
-    "latitude": 54.01,
-    "longitude": -132.149
-  },
-  {
-    "id": "5cebf1de3d0f4a073c4bb94c",
-    "officialName": "Point Atkinson",
-    "operating": true,
-    "latitude": 49.3375,
-    "longitude": -123.253583
-  }
+  {"provider":"dfo","id":"603023f41113077897271273","officialName":"Pembina Terminal","operating":true,"latitude":54.236287,"longitude":-130.303479},
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bb91e","officialName":"Hartley Bay","operating":true,"latitude":53.424213,"longitude":-129.251877},
+  {"provider":"dfo","id":"5cebf1e23d0f4a073c4bc0b7","officialName":"Bella Coola","operating":false,"latitude":52.374,"longitude":-126.796},
+  {"provider":"dfo","id":"5cebf1e43d0f4a073c4bc45a","officialName":"Ambleside","operating":true,"latitude":49.32577,"longitude":-123.15458},
+  {"provider":"dfo","id":"5cebf1e43d0f4a073c4bc404","officialName":"Kitsilano","operating":true,"latitude":49.276583,"longitude":-123.13936},
+  {"provider":"dfo","id":"5cebf1e23d0f4a073c4bc060","officialName":"Port Renfrew","operating":true,"latitude":48.555,"longitude":-124.421},
+  {"provider":"dfo","id":"5cebf1e23d0f4a073c4bc062","officialName":"Bamfield","operating":true,"latitude":48.836,"longitude":-125.136},
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bba06","officialName":"Prince Rupert","operating":true,"latitude":54.317,"longitude":-130.324},
+  {"provider":"dfo","id":"5cebf1e23d0f4a073c4bc06f","officialName":"Port Alberni","operating":true,"latitude":49.225621,"longitude":-124.813613},
+  {"provider":"dfo","id":"5cebf1e13d0f4a073c4bbf8c","officialName":"Steveston","operating":true,"latitude":49.1245,"longitude":-123.1922},
+  {"provider":"dfo","id":"5cebf1df3d0f4a073c4bbd1e","officialName":"Victoria Harbour","operating":true,"latitude":48.424666,"longitude":-123.3707},
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bba3e","officialName":"Daajing Giids","operating":true,"latitude":53.252,"longitude":-132.072},
+  {"provider":"dfo","id":"5cebf1e23d0f4a073c4bc075","officialName":"Ucluelet","operating":true,"latitude":48.947,"longitude":-125.552},
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bb925","officialName":"Kitimat","operating":true,"latitude":53.989,"longitude":-128.696},
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bb996","officialName":"Campbell River","operating":true,"latitude":50.042,"longitude":-125.247},
+  {"provider":"dfo","id":"5cebf1e43d0f4a073c4bc447","officialName":"Aero Trading","operating":false,"latitude":54.212997,"longitude":-130.288383},
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bb943","officialName":"Vancouver","operating":true,"latitude":49.2863,"longitude":-123.0997},
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bba0c","officialName":"Gingolx","operating":true,"latitude":54.999,"longitude":-129.978},
+  {"provider":"dfo","id":"5cebf1e43d0f4a073c4bc40e","officialName":"Darrell Bay","operating":true,"latitude":49.669,"longitude":-123.169},
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bb9c7","officialName":"Port Hardy","operating":true,"latitude":50.722,"longitude":-127.489},
+  {"provider":"dfo","id":"5cebf1df3d0f4a073c4bbd2d","officialName":"Patricia Bay","operating":true,"latitude":48.6536,"longitude":-123.4515},
+  {"provider":"dfo","id":"5cebf1e43d0f4a073c4bc44d","officialName":"Porpoise Channel East","operating":true,"latitude":54.21515,"longitude":-130.28906},
+  {"provider":"dfo","id":"5cebf1e43d0f4a073c4bc43b","officialName":"Sandy Cove","operating":true,"latitude":49.3405,"longitude":-123.2319},
+  {"provider":"dfo","id":"5cebf1e23d0f4a073c4bc0c2","officialName":"Bella Bella","operating":true,"latitude":52.163,"longitude":-128.143},
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bb93c","officialName":"Sand Heads","operating":true,"latitude":49.1052,"longitude":-123.3042},
+  {"provider":"dfo","id":"5cebf1e23d0f4a073c4bc097","officialName":"Winter Harbour","operating":true,"latitude":50.513,"longitude":-128.029},
+  {"provider":"dfo","id":"5cebf1df3d0f4a073c4bbd26","officialName":"Sidney","operating":true,"latitude":48.649216,"longitude":-123.3929},
+  {"provider":"dfo","id":"5dd30650e0fdc4b9b4be6dc4","officialName":"Fairview Terminal","operating":true,"latitude":54.290263,"longitude":-130.359937},
+  {"provider":"dfo","id":"5dd30650e0fdc4b9b4be6dfe","officialName":"Pruth Bay","operating":true,"latitude":51.654504,"longitude":-128.129455},
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bba2d","officialName":"Rose Harbour","operating":true,"latitude":52.1552,"longitude":-131.0909},
+  {"provider":"dfo","id":"5cebf1e43d0f4a073c4bc469","officialName":"Prince Rupert RoRo","operating":true,"latitude":54.234885,"longitude":-130.335097},
+  {"provider":"dfo","id":"5cebf1e43d0f4a073c4bc42d","officialName":"Woodward's Landing","operating":true,"latitude":49.1251,"longitude":-123.0754},
+  {"provider":"dfo","id":"5cebf1e43d0f4a073c4bc453","officialName":"Seal Cove","operating":false,"latitude":54.3311,"longitude":-130.2796},
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bb96d","officialName":"Nanaimo Harbour","operating":true,"latitude":49.1628,"longitude":-123.9235},
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bb94a","officialName":"Port Moody","operating":true,"latitude":49.2877,"longitude":-122.86583},
+  {"provider":"dfo","id":"5dd3064ee0fdc4b9b4be6717","officialName":"Indian Arm Head","operating":true,"latitude":49.4618,"longitude":-122.8861},
+  {"provider":"dfo","id":"5cebf1e23d0f4a073c4bc07c","officialName":"Tofino","operating":true,"latitude":49.154,"longitude":-125.913},
+  {"provider":"dfo","id":"5cebf1e13d0f4a073c4bbf93","officialName":"New Westminster","operating":true,"latitude":49.2,"longitude":-122.91},
+  {"provider":"dfo","id":"5cebf1e43d0f4a073c4bc434","officialName":"Calamity Point","operating":true,"latitude":49.31257,"longitude":-123.127678},
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bba44","officialName":"Masset","operating":true,"latitude":54.01,"longitude":-132.149},
+  {"provider":"dfo","id":"5cebf1de3d0f4a073c4bb94c","officialName":"Point Atkinson","operating":true,"latitude":49.3375,"longitude":-123.253583}
 ];

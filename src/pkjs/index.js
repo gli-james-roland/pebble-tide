@@ -1,11 +1,11 @@
 'use strict';
 
 var config = require('./config');
-var tides = require('./tides');
 var geo = require('./geo');
 var blob = require('./blob');
 var refresh = require('./refresh');
 var sun = require('./sun');
+var providers = require('./providers');
 var STATIONS = require('./stations');
 
 // Issue #9: phone-side display config. Two settings — height units (feet/metres)
@@ -29,7 +29,6 @@ function sendConfig() {
 // Issue #3: fetch a full week of high/low extrema, pack into a versioned blob,
 // and stream it to the watch in chunks. Refresh only on a new calendar day or
 // a changed nearest station. The watch persists the blob and works offline.
-var IWLS_HOST = 'https://api-iwls.dfo-mpo.gc.ca';
 var WEEK_DAYS = 7;
 var BACK_DAYS = 1; // also pull one day of history so the centered window
                    // always has curve to the left of "now"
@@ -37,23 +36,11 @@ var CHUNK_SIZE = 64; // bytes per AppMessage; must match CHUNK_SIZE on the watch
 var META_KEY = 'cacheMeta';
 var LAST_STATION_KEY = 'lastStation';
 
-function isoZ(date) {
-  return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
-}
-
 function todayStr() {
   var d = new Date();
   var m = ('0' + (d.getMonth() + 1)).slice(-2);
   var day = ('0' + d.getDate()).slice(-2);
   return d.getFullYear() + '-' + m + '-' + day;
-}
-
-function seriesUrl(stationId, code, resolution, fromDate, toDate) {
-  return IWLS_HOST + '/api/v1/stations/' + stationId +
-    '/data?time-series-code=' + code +
-    '&from=' + isoZ(fromDate) +
-    '&to=' + isoZ(toDate) +
-    '&resolution=' + resolution;
 }
 
 function fetchJson(url, cb) {
@@ -130,7 +117,8 @@ function fetchWeek(station, distanceKm) {
   var now = new Date();
   var from = new Date(now.getTime() - BACK_DAYS * 24 * 60 * 60 * 1000);
   var to = new Date(now.getTime() + WEEK_DAYS * 24 * 60 * 60 * 1000);
-  var hiloUrl = seriesUrl(station.id, 'wlp-hilo', 'ALL', from, to);
+  var adapter = providers.forStation(station);
+  var hiloUrl = adapter.hiloUrl(station, from, to);
   var sunDays = sunDaysForWindow(from, to, station);
 
   // The watch draws a cosine curve between extrema (ADR 0002), so we only need
@@ -140,9 +128,7 @@ function fetchWeek(station, distanceKm) {
       console.log('hilo fetch failed (' + e1 + '); keeping cache');
       return;
     }
-    var points = tides.classifyExtrema(hilo).map(function (x) {
-      return { epoch: x.epoch, heightCm: x.heightCm, kind: x.type === 'HIGH' ? 1 : 2 };
-    });
+    var points = adapter.parseHilo(hilo);
     var u8 = blob.packWeek(points, station, distanceKm, sunDays);
     sendBlob(u8, station.id, function () {
       writeJson(META_KEY, { date: todayStr(), stationId: station.id, version: blob.BLOB_VERSION });
@@ -168,7 +154,8 @@ function onPosition(pos) {
   writeJson(LAST_STATION_KEY, {
     id: result.station.id, officialName: result.station.officialName,
     latitude: result.station.latitude, longitude: result.station.longitude,
-    operating: result.station.operating, distanceKm: result.distanceKm,
+    operating: result.station.operating, provider: result.station.provider,
+    distanceKm: result.distanceKm,
   });
   maybeRefresh(result.station, result.distanceKm);
 }
