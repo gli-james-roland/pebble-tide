@@ -27,10 +27,13 @@ function readCache(storage) {
 }
 
 // Merge one provider's slice into the cache, preserving every other slice,
-// then persist. fetchedAt is the ms-epoch timestamp of the fetch.
-function writeSlice(storage, provider, stations, fetchedAt) {
+// then persist. fetchedAt is the ms-epoch timestamp of the fetch. version is
+// the catalog format version at write time (see orchestrate.CATALOG_VERSION);
+// a version bump triggers a background refresh (issue #35). Reads stay
+// backward-safe: a slice with no version is treated as needing refresh.
+function writeSlice(storage, provider, stations, fetchedAt, version) {
   var cache = readCache(storage);
-  cache[provider] = { stations: stations, fetchedAt: fetchedAt };
+  cache[provider] = { stations: stations, fetchedAt: fetchedAt, version: version };
   try {
     storage.setItem(CACHE_KEY, JSON.stringify(cache));
   } catch (e) { /* localStorage may be unavailable; non-fatal */ }

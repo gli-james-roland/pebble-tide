@@ -7,7 +7,10 @@ var refresh = require('./refresh');
 var sun = require('./sun');
 var providers = require('./providers');
 var catalog = require('./catalog');
+var orchestrate = require('./orchestrate');
 var STATIONS = require('./stations');
+
+var CATALOG_PROVIDERS = ['dfo', 'noaa'];
 
 // Issue #9: phone-side display config. Two settings — height units (feet/metres)
 // and clock format (12h/24h) — sync to the watch on their own AppMessage
@@ -153,48 +156,78 @@ function selectStation(lat, lon) {
   return geo.nearestUsableStation(candidates, lat, lon);
 }
 
-// Opportunistic NOAA catalog load: if the noaa slice is absent, fetch + parse +
-// store it so future selections run over the dynamic list. Full refresh
-// orchestration (TTL/version/failure isolation, first-run awaiting) is #35;
-// this just seeds the slice once, fire-and-forget.
-function maybeLoadNoaaCatalog() {
-  if (catalog.readCache(localStorage).noaa) {
-    return;
-  }
-  var noaa = providers.REGISTRY.noaa;
-  fetchJson(noaa.catalogUrl(), function (err, json) {
-    if (err) {
-      console.log('NOAA catalog fetch failed (' + err + '); keeping seed');
-      return;
-    }
-    catalog.writeSlice(localStorage, 'noaa', noaa.parseCatalog(json), Date.now());
-    console.log('NOAA catalog cached');
+// Fetch + parse one provider's catalog. Resolves to a slice-result the pure
+// orchestrate.mergeRefreshResults understands: { ok:true, stations, fetchedAt,
+// version } on success, { ok:false } on any failure. Never rejects — a failed
+// fetch is isolated to that provider, not propagated.
+function fetchCatalogSlice(name) {
+  return new Promise(function (resolve) {
+    var adapter = providers.REGISTRY[name];
+    fetchJson(adapter.catalogUrl(), function (err, json) {
+      if (err) {
+        console.log(name + ' catalog fetch failed (' + err + '); keeping last-good');
+        resolve({ ok: false });
+        return;
+      }
+      try {
+        resolve({
+          ok: true,
+          stations: adapter.parseCatalog(json),
+          fetchedAt: Date.now(),
+          version: blob.BLOB_VERSION,
+        });
+      } catch (e) {
+        console.log(name + ' catalog parse failed (' + e + '); keeping last-good');
+        resolve({ ok: false });
+      }
+    });
   });
 }
 
-// Opportunistic DFO catalog load: same shape as maybeLoadNoaaCatalog. If the
-// dfo slice is absent, fetch + parse + store it so selection runs over the full
-// Canadian list rather than the BC seed. Full refresh orchestration
-// (TTL/version/failure isolation, first-run awaiting) is #35; this seeds the
-// slice once, fire-and-forget.
-function maybeLoadDfoCatalog() {
-  if (catalog.readCache(localStorage).dfo) {
+// Persist whatever a refresh round produced, with per-provider failure
+// isolation handled by the pure merge (a failed provider keeps its old slice).
+function persistRefresh(provider, result) {
+  if (result && result.ok) {
+    catalog.writeSlice(localStorage, provider, result.stations, result.fetchedAt, result.version);
+    console.log(provider + ' catalog cached (' + result.stations.length + ' stations)');
+  }
+}
+
+// Background refresh for the providers whose slice is stale or version-bumped.
+// Fire-and-forget: it writes slices for the NEXT launch and never blocks this
+// one. Each provider is isolated — one failure does not affect the other.
+function backgroundRefreshCatalogs(cache) {
+  var stale = orchestrate.providersToRefresh(
+    cache, Date.now(), orchestrate.CATALOG_TTL_MS, blob.BLOB_VERSION, CATALOG_PROVIDERS
+  );
+  if (stale.length === 0) {
     return;
   }
-  var dfo = providers.REGISTRY.dfo;
-  fetchJson(dfo.catalogUrl(), function (err, json) {
-    if (err) {
-      console.log('DFO catalog fetch failed (' + err + '); keeping seed');
-      return;
-    }
-    catalog.writeSlice(localStorage, 'dfo', dfo.parseCatalog(json), Date.now());
-    console.log('DFO catalog cached');
+  console.log('Background catalog refresh: ' + stale.join(', '));
+  stale.forEach(function (name) {
+    fetchCatalogSlice(name).then(function (result) { persistRefresh(name, result); });
+  });
+}
+
+// Cold first run (no cache): await BOTH catalog fetches, persist whatever
+// succeeded, then run the geolocation->select flow over the resulting union.
+// If both fail (offline), the union falls back to the seed so the watch still
+// shows a station (far-flag handled by blob). Always proceeds to select.
+function coldStartThenLocate() {
+  Promise.all(CATALOG_PROVIDERS.map(fetchCatalogSlice)).then(function (slices) {
+    CATALOG_PROVIDERS.forEach(function (name, i) { persistRefresh(name, slices[i]); });
+    locate();
+  });
+}
+
+function locate() {
+  navigator.geolocation.getCurrentPosition(onPosition, onPositionError, {
+    timeout: 15000,
+    maximumAge: 60000,
   });
 }
 
 function onPosition(pos) {
-  maybeLoadNoaaCatalog();
-  maybeLoadDfoCatalog();
   var result = selectStation(pos.coords.latitude, pos.coords.longitude);
   if (!result) {
     console.log('No usable station found');
@@ -223,10 +256,17 @@ function onPositionError(err) {
 Pebble.addEventListener('ready', function () {
   console.log('pebble_tides pkjs ready');
   sendConfig(); // push saved display prefs (or defaults) so the watch renders correctly
-  navigator.geolocation.getCurrentPosition(onPosition, onPositionError, {
-    timeout: 15000,
-    maximumAge: 60000,
-  });
+  var cache = catalog.readCache(localStorage);
+  if (!orchestrate.hasAnyCache(cache)) {
+    // Cold first run: await catalog fetch(es) so an out-of-seed-region user gets
+    // a correct nearby station on the very first launch (offline -> seed fallback).
+    coldStartThenLocate();
+  } else {
+    // Cache present: select instantly from the union; refresh stale/bumped
+    // slices in the background for next launch (does not block this display).
+    locate();
+    backgroundRefreshCatalogs(cache);
+  }
 });
 
 Pebble.addEventListener('showConfiguration', function () {

@@ -29,12 +29,19 @@ test('readCache returns the parsed object when valid', () => {
 
 test('writeSlice persists a slice and preserves an existing other slice', () => {
   const s = fakeStorage({
-    stationCatalog: JSON.stringify({ dfo: { stations: [{ id: 'd1' }], fetchedAt: 1 } }),
+    stationCatalog: JSON.stringify({ dfo: { stations: [{ id: 'd1' }], fetchedAt: 1, version: 3 } }),
   });
-  catalog.writeSlice(s, 'noaa', [{ id: 'n1' }], 999);
+  catalog.writeSlice(s, 'noaa', [{ id: 'n1' }], 999, 3);
   const out = JSON.parse(s.store.stationCatalog);
-  assert.deepStrictEqual(out.dfo, { stations: [{ id: 'd1' }], fetchedAt: 1 });
-  assert.deepStrictEqual(out.noaa, { stations: [{ id: 'n1' }], fetchedAt: 999 });
+  assert.deepStrictEqual(out.dfo, { stations: [{ id: 'd1' }], fetchedAt: 1, version: 3 });
+  assert.deepStrictEqual(out.noaa, { stations: [{ id: 'n1' }], fetchedAt: 999, version: 3 });
+});
+
+test('writeSlice persists the version alongside fetchedAt (round-trips via readCache)', () => {
+  const s = fakeStorage();
+  catalog.writeSlice(s, 'dfo', [{ id: 'd1' }], 42, 7);
+  const cache = catalog.readCache(s);
+  assert.deepStrictEqual(cache.dfo, { stations: [{ id: 'd1' }], fetchedAt: 42, version: 7 });
 });
 
 const SEED = [
