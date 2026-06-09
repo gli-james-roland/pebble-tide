@@ -18,9 +18,17 @@ IWLS service and cover the British Columbia coast.
 
 ## Screenshots
 
+Canadian station (DFO):
+
 | Pebble Round 2 (gabbro) | Pebble Time 2 (emery) | Time Round (chalk) | Black & white (diorite) |
 |---|---|---|---|
 | ![gabbro](screenshots/gabbro.png) | ![emery](screenshots/emery.png) | ![chalk](screenshots/chalk.png) | ![diorite](screenshots/diorite.png) |
+
+US station (NOAA) — Seattle:
+
+| Pebble Round 2 (gabbro) | Pebble Time 2 (emery) | Time Round (chalk) | Black & white (diorite) |
+|---|---|---|---|
+| ![gabbro Seattle](screenshots/gabbro-seattle.png) | ![emery Seattle](screenshots/emery-seattle.png) | ![chalk Seattle](screenshots/chalk-seattle.png) | ![diorite Seattle](screenshots/diorite-seattle.png) |
 
 ## Controls
 
