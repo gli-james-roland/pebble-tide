@@ -9,5 +9,8 @@ pebble_screenshot_*.png
 # Node
 node_modules/
 
+# Python (publish wrapper bytecode)
+__pycache__/
+
 # macOS
 .DS_Store
