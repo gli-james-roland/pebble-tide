@@ -1,5 +1,5 @@
 # Convenience wrappers around the Pebble SDK toolchain.
-.PHONY: build install clean test release publish screenshots
+.PHONY: build install clean test test-live release publish screenshots
 
 build:        ## build the .pbw for all platforms
 	pebble build
@@ -7,8 +7,11 @@ build:        ## build the .pbw for all platforms
 install: build ## build + run on the gabbro emulator
 	pebble install --emulator gabbro
 
-test:         ## run the pkjs unit tests
+test:         ## run the pkjs unit tests (live API tests skipped)
 	node --test
+
+test-live:    ## run unit tests + live NOAA API smoke tests (needs network)
+	LIVE_NOAA=1 node --test
 
 clean:
 	pebble clean
