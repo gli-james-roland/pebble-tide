@@ -121,18 +121,18 @@ function fetchWeek(station, distanceKm) {
   var now = new Date();
   var from = new Date(now.getTime() - BACK_DAYS * 24 * 60 * 60 * 1000);
   var to = new Date(now.getTime() + WEEK_DAYS * 24 * 60 * 60 * 1000);
-  var adapter = providers.forStation(station);
-  var hiloUrl = adapter.hiloUrl(station, from, to);
+  var hiloUrl = providers.forStation(station).hiloUrl(station, from, to);
   var sunDays = sunDaysForWindow(from, to, station);
 
   // The watch draws a cosine curve between extrema (ADR 0002), so we only need
-  // the high/low series -- no hourly wlp curve to fetch or cache.
-  fetchJson(hiloUrl, function (e1, hilo) {
-    if (e1 || !Array.isArray(hilo) || hilo.length === 0) {
+  // the high/low series -- no hourly wlp curve to fetch or cache. pointsFor
+  // routes by provider and owns the response shape (DFO array vs NOAA object).
+  fetchJson(hiloUrl, function (e1, raw) {
+    var points = providers.pointsFor(station, e1, raw);
+    if (points.length === 0) {
       console.log('hilo fetch failed (' + e1 + '); keeping cache');
       return;
     }
-    var points = adapter.parseHilo(hilo);
     var u8 = blob.packWeek(points, station, distanceKm, sunDays);
     sendBlob(u8, station.id, function () {
       writeJson(META_KEY, { date: todayStr(), stationId: station.id, version: blob.BLOB_VERSION });

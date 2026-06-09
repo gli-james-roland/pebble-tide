@@ -5,6 +5,15 @@ const dfo = require('../src/pkjs/providers/dfo');
 const providers = require('../src/pkjs/providers');
 const STATIONS = require('../src/pkjs/stations');
 
+test('parseHilo returns [] for a non-array payload instead of throwing', () => {
+  // IWLS normally returns an array; a non-array body (error object, null) must
+  // not throw -- the caller treats [] as "no data, keep cache". Mirrors NOAA's
+  // parseHilo, which already guards its own response shape.
+  assert.deepStrictEqual(dfo.parseHilo(undefined), []);
+  assert.deepStrictEqual(dfo.parseHilo(null), []);
+  assert.deepStrictEqual(dfo.parseHilo({ error: 'nope' }), []);
+});
+
 test('hiloUrl builds the DFO IWLS wlp-hilo URL for a station and date window', () => {
   const station = { id: '5cebf1de3d0f4a073c4bb94c', provider: 'dfo' };
   const from = new Date('2026-06-07T00:00:00Z');
