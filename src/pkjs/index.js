@@ -6,6 +6,7 @@ var blob = require('./blob');
 var refresh = require('./refresh');
 var sun = require('./sun');
 var providers = require('./providers');
+var catalog = require('./catalog');
 var STATIONS = require('./stations');
 
 // Issue #9: phone-side display config. Two settings — height units (feet/metres)
@@ -145,8 +146,35 @@ function maybeRefresh(station, distanceKm) {
   }
 }
 
+// Run nearest-by-haversine over the UNION of every cached catalog slice plus
+// the seed (seed fills providers that have no cache slice yet). Issue #33.
+function selectStation(lat, lon) {
+  var candidates = catalog.unionStations(catalog.readCache(localStorage), STATIONS);
+  return geo.nearestUsableStation(candidates, lat, lon);
+}
+
+// Opportunistic NOAA catalog load: if the noaa slice is absent, fetch + parse +
+// store it so future selections run over the dynamic list. Full refresh
+// orchestration (TTL/version/failure isolation, first-run awaiting) is #35;
+// this just seeds the slice once, fire-and-forget.
+function maybeLoadNoaaCatalog() {
+  if (catalog.readCache(localStorage).noaa) {
+    return;
+  }
+  var noaa = providers.REGISTRY.noaa;
+  fetchJson(noaa.catalogUrl(), function (err, json) {
+    if (err) {
+      console.log('NOAA catalog fetch failed (' + err + '); keeping seed');
+      return;
+    }
+    catalog.writeSlice(localStorage, 'noaa', noaa.parseCatalog(json), Date.now());
+    console.log('NOAA catalog cached');
+  });
+}
+
 function onPosition(pos) {
-  var result = geo.nearestUsableStation(STATIONS, pos.coords.latitude, pos.coords.longitude);
+  maybeLoadNoaaCatalog();
+  var result = selectStation(pos.coords.latitude, pos.coords.longitude);
   if (!result) {
     console.log('No usable station found');
     return;

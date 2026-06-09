@@ -40,4 +40,38 @@ function parseHilo(json) {
   });
 }
 
-module.exports = { hiloUrl: hiloUrl, parseHilo: parseHilo, NOAA_HOST: NOAA_HOST };
+// NOAA MDAPI station catalog. Used to load the NOAA station list dynamically
+// instead of hand-seeding it (issue #33). `type=tidepredictions` returns both
+// reference (R) and subordinate (S) stations; we keep both since both yield
+// hilo predictions via the datagetter above.
+var MDAPI_CATALOG_URL =
+  'https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions';
+
+function catalogUrl() {
+  return MDAPI_CATALOG_URL;
+}
+
+// Trim the MDAPI response to the fields selection needs. `id` is numeric in the
+// JSON; coerce to string so it matches the seed/fetch key type. Keep R and S.
+function parseCatalog(json) {
+  if (!json || !Array.isArray(json.stations)) {
+    return [];
+  }
+  return json.stations.map(function (s) {
+    return {
+      id: String(s.id),
+      name: s.name,
+      lat: s.lat,
+      lng: s.lng,
+      provider: 'noaa',
+    };
+  });
+}
+
+module.exports = {
+  hiloUrl: hiloUrl,
+  parseHilo: parseHilo,
+  NOAA_HOST: NOAA_HOST,
+  catalogUrl: catalogUrl,
+  parseCatalog: parseCatalog,
+};
