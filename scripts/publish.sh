@@ -17,14 +17,28 @@ VERSION="$(python3 -c "import json;print(json.load(open('package.json'))['versio
 echo "Building $NAME $VERSION ..."
 pebble build
 
-# pebble publish expects screenshot filenames prefixed by platform name.
+# pebble publish infers each screenshot's platform from the filename: it takes
+# the text before the first "_". Source files are <platform>.png and
+# <platform>-<variant>.png (e.g. chalk.png, chalk-seattle.png), so stage them as
+# <platform>_<variant>_screenshot.png to keep a valid platform prefix. A file
+# whose platform isn't in the build is skipped with a warning rather than
+# uploaded under a bogus platform name.
+PLATFORMS="$(python3 -c "import json;print(' '.join(json.load(open('package.json'))['pebble']['targetPlatforms']))")"
 SHOTS=()
 if compgen -G "screenshots/*.png" >/dev/null; then
   STAGE="$(mktemp -d)"
   for f in screenshots/*.png; do
-    plat="$(basename "$f" .png)"
-    cp "$f" "$STAGE/${plat}_screenshot.png"
-    SHOTS+=("$STAGE/${plat}_screenshot.png")
+    base="$(basename "$f" .png)"           # e.g. chalk-seattle or chalk
+    plat="${base%%-*}"                     # platform = text before first "-"
+    variant="${base#*-}"                   # text after first "-"
+    [ "$variant" = "$base" ] && variant="main"   # no "-" -> default variant
+    case " $PLATFORMS " in
+      *" $plat "*) ;;
+      *) echo "warning: skipping $f (unknown platform '$plat')" >&2; continue ;;
+    esac
+    staged="$STAGE/${plat}_${variant}_screenshot.png"
+    cp "$f" "$staged"
+    SHOTS+=("$staged")
   done
 fi
 
