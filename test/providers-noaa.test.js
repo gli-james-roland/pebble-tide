@@ -54,3 +54,31 @@ test('registry forStation returns the noaa adapter for a noaa station and dfo fo
   assert.strictEqual(providers.forStation({ provider: 'noaa' }), noaa);
   assert.strictEqual(providers.forStation({ provider: 'dfo' }), dfo);
 });
+
+test('catalogUrl points at the NOAA MDAPI tidepredictions stations list', () => {
+  assert.strictEqual(
+    noaa.catalogUrl(),
+    'https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json?type=tidepredictions'
+  );
+});
+
+test('parseCatalog trims records, keeps both R and S, coerces id to string, tags provider', () => {
+  const json = {
+    count: 2,
+    stations: [
+      { id: 9447130, name: 'Seattle', lat: 47.6, lng: -122.3, type: 'R' },
+      { id: 9447131, name: 'Sub', lat: 47.7, lng: -122.4, type: 'S' },
+    ],
+  };
+  const records = noaa.parseCatalog(json);
+  assert.deepStrictEqual(records, [
+    { id: '9447130', name: 'Seattle', lat: 47.6, lng: -122.3, provider: 'noaa' },
+    { id: '9447131', name: 'Sub', lat: 47.7, lng: -122.4, provider: 'noaa' },
+  ]);
+});
+
+test('parseCatalog returns [] for missing or non-array stations', () => {
+  assert.deepStrictEqual(noaa.parseCatalog(undefined), []);
+  assert.deepStrictEqual(noaa.parseCatalog({}), []);
+  assert.deepStrictEqual(noaa.parseCatalog({ stations: 'nope' }), []);
+});
