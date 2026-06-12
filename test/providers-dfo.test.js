@@ -65,7 +65,7 @@ test('registry forStation throws on an unknown provider', () => {
 test('every seed station carries a known provider', () => {
   assert.ok(STATIONS.length > 0);
   for (const s of STATIONS) {
-    assert.ok(s.provider === 'dfo' || s.provider === 'noaa',
+    assert.ok(s.provider === 'dfo' || s.provider === 'noaa' || s.provider === 'bom',
       s.officialName + ' must carry a known provider');
   }
 });

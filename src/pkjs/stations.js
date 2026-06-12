@@ -45,5 +45,11 @@ module.exports = [
   {"provider":"dfo","id":"5cebf1e43d0f4a073c4bc434","officialName":"Calamity Point","operating":true,"latitude":49.31257,"longitude":-123.127678},
   {"provider":"dfo","id":"5cebf1de3d0f4a073c4bba44","officialName":"Masset","operating":true,"latitude":54.01,"longitude":-132.149},
   {"provider":"dfo","id":"5cebf1de3d0f4a073c4bb94c","officialName":"Point Atkinson","operating":true,"latitude":49.3375,"longitude":-123.253583},
-  {"provider":"noaa","id":"9447130","officialName":"Seattle","operating":true,"latitude":47.602638,"longitude":-122.339432}
+  {"provider":"noaa","id":"9447130","officialName":"Seattle","operating":true,"latitude":47.602638,"longitude":-122.339432},
+  {"provider":"bom","id":"NSW_TP007","officialName":"Sydney (Fort Denison)","operating":true,"latitude":-33.8543,"longitude":151.2253,"tz":"Australia/Sydney","region":"NSW"},
+  {"provider":"bom","id":"QLD_TP003","officialName":"Brisbane Bar","operating":true,"latitude":-27.3608,"longitude":153.1719,"tz":"Australia/Brisbane","region":"QLD"},
+  {"provider":"bom","id":"WA_TP015","officialName":"Fremantle","operating":true,"latitude":-32.0558,"longitude":115.7395,"tz":"Australia/Perth","region":"WA"},
+  {"provider":"bom","id":"TAS_TP003","officialName":"Hobart","operating":true,"latitude":-42.877328,"longitude":147.340953,"tz":"Australia/Hobart","region":"TAS"},
+  {"provider":"bom","id":"SA_TP001","officialName":"Port Adelaide (Outer Harbor)","operating":true,"latitude":-34.779761,"longitude":138.480728,"tz":"Australia/Adelaide","region":"SA"},
+  {"provider":"bom","id":"NT_TP001","officialName":"Darwin","operating":true,"latitude":-12.4718,"longitude":130.8459,"tz":"Australia/Darwin","region":"NT"}
 ];
