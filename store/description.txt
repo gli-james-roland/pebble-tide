@@ -10,6 +10,6 @@ Features:
 - Feet or metres, 12 or 24 hour clock, all set from the phone
 - Caches a week of predictions and refreshes once a day; works with the phone out of range
 
-Coverage: Pebble Tides covers Canada, using Fisheries and Oceans Canada (DFO) predictions, and the United States, using NOAA predictions. It picks the station nearest you. If you'd like another region added, let me know and I'm happy to look at adding it.
+Coverage: Pebble Tides covers Canada (Fisheries and Oceans Canada, DFO), the United States (NOAA), and Australia and the South Pacific (Bureau of Meteorology, BOM). It picks the station nearest you. If you'd like another region added, let me know and I'm happy to look at adding it.
 
 Controls: Up/Down step tides, long-press Up/Down jump a day, Select jumps to now, Back exits.
