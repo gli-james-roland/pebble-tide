@@ -99,3 +99,26 @@ test('registry routes provider:"bom" to the BOM adapter', () => {
   const adapter = registry.forStation({ provider: 'bom', id: 'TAS_TP003' });
   assert.strictEqual(adapter, bom);
 });
+
+// Issue 1: attribute order must not matter — class before data-time-utc
+test('parseHilo is order-independent: class attr before data-time-utc', () => {
+  // Same data as a real high-tide cell but class= written before data-time-utc=
+  var html =
+    '<td class="localtime high-tide" data-time-utc="2026-06-10T04:32:00Z">4:32 am</td>' +
+    '<td class="height high-tide">1.12 m</td>';
+  const pts = bom.parseHilo(html);
+  assert.strictEqual(pts.length, 1);
+  assert.strictEqual(pts[0].kind, 1);
+  assert.strictEqual(pts[0].heightCm, 112);
+  assert.strictEqual(pts[0].epoch, Math.floor(Date.parse('2026-06-10T04:32:00Z') / 1000));
+});
+
+// Issue 2: time/height count mismatch must return [] not silently corrupt
+test('parseHilo returns [] when time and height counts differ', () => {
+  // 2 time cells but only 1 height cell
+  var html =
+    '<td data-time-utc="2026-06-10T04:32:00Z" class="localtime high-tide">4:32 am</td>' +
+    '<td data-time-utc="2026-06-10T10:00:00Z" class="localtime low-tide">10:00 am</td>' +
+    '<td class="height high-tide">1.12 m</td>';
+  assert.deepStrictEqual(bom.parseHilo(html), []);
+});

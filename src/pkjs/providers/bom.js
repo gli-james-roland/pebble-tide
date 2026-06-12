@@ -89,19 +89,26 @@ function parseHilo(html) {
     return [];
   }
   var times = [];
-  var reTime = /data-time-utc="([^"]+)"[^>]*class="[^"]*(high|low)-tide/g;
+  var reCell = /<td\b([^>]*)>/g;
   var m;
-  while ((m = reTime.exec(html)) !== null) {
-    times.push({ iso: m[1], kind: m[2] === 'high' ? 1 : 2 });
+  while ((m = reCell.exec(html)) !== null) {
+    var attrs = m[1];
+    var utcM = /data-time-utc="([^"]+)"/.exec(attrs);
+    var kindM = /class="[^"]*(high|low)-tide/.exec(attrs);
+    if (utcM && kindM) {
+      times.push({ iso: utcM[1], kind: kindM[1] === 'high' ? 1 : 2 });
+    }
   }
   var heights = [];
   var reHeight = /class="height (?:high|low)-tide"[^>]*>\s*([0-9.]+)\s*m/g;
   while ((m = reHeight.exec(html)) !== null) {
     heights.push(Math.round(parseFloat(m[1]) * 100));
   }
-  var n = Math.min(times.length, heights.length);
+  if (times.length !== heights.length) {
+    return [];
+  }
   var out = [];
-  for (var i = 0; i < n; i++) {
+  for (var i = 0; i < times.length; i++) {
     out.push({
       epoch: Math.floor(Date.parse(times[i].iso) / 1000),
       heightCm: heights[i],
