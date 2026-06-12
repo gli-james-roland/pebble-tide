@@ -9,9 +9,10 @@
 
 #define BLOB_VERSION 3
 #define CHUNK_SIZE 64            // must match CHUNK_SIZE in src/pkjs/index.js
-#define MAX_BLOB_BYTES 2048
-#define MAX_POINTS 256
-#define MAX_SUN_DAYS 16          // per-day sunrise/sunset; window is ~9 days
+#define MAX_BLOB_BYTES 3072      // holds a 45-day Offline Range (ADR 0005); 12 persist
+                                 // chunks at keys 11..22 (config relocated to 40+)
+#define MAX_POINTS 320           // 45 days at up to ~7 extrema/day
+#define MAX_SUN_DAYS 48          // 45 forward + 1 back + margin of night shading
 #define MAX_WIN_POINTS 96
 #define MAX_DENSE 800            // smoothed (Catmull-Rom) curve samples
 #define SMOOTH_STEPS 8           // sub-samples per control segment
