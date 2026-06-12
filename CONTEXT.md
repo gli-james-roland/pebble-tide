@@ -1,18 +1,28 @@
 # Pebble Tides
 
-A Pebble watchapp that shows a day's predicted tides — exact high/low times and a curve — for the user's nearest tide station. Stations come from two Providers: the Canadian DFO IWLS API and the US NOAA CO-OPS API.
+A Pebble watchapp that shows a day's predicted tides — exact high/low times and a curve — for the user's nearest tide station. Stations come from three Providers: the Canadian DFO IWLS API, the US NOAA CO-OPS API, and the Australian BOM tide tables.
 
 ## Language
 
 **Provider**:
-A tide-prediction data source the app can pull from. Two exist: **DFO** (Canada, IWLS) and **NOAA** (US, CO-OPS). Every Station belongs to exactly one Provider, which determines its `id` namespace, the endpoint used to fetch its predictions, and the response shape that must be normalised before use.
+A tide-prediction data source the app can pull from. Three exist: **DFO** (Canada, IWLS), **NOAA** (US, CO-OPS), and **BOM** (Australia and the South Pacific, Bureau of Meteorology tide tables). Every Station belongs to exactly one Provider, which determines its `id` namespace, the endpoint used to fetch its predictions, and the response shape that must be normalised before use. BOM serves predictions only to the end of the current calendar year; DFO and NOAA serve years ahead.
 
 **Station**:
 A tide-prediction location with a fixed latitude/longitude, belonging to one Provider, identified by an `id` (used in that Provider's API calls) and shown to the user by its `officialName`. The app picks the one nearest the user's current position, across both Providers.
 _Avoid_: Site, location, port.
 
+**Tracked Station**:
+The single Station the app currently shows tides for. Exactly one at a time. It is the **Nearest Station** in **Auto Mode**, or the **Pinned Station** in **Pinned Mode**.
+
 **Nearest Station**:
-The single **Usable Station** with the smallest great-circle distance to the user's current position. The app tracks tides for exactly one Station at a time — the Nearest Station.
+The single **Usable Station** with the smallest great-circle distance to the user's current position. The Tracked Station in Auto Mode. A Pinned Station overrides it.
+
+**Pinned Station**:
+A **Usable Station** the user selects manually (for a destination they are not yet at), which becomes the Tracked Station and fully overrides Nearest-Station selection while set. Setting a Pinned Station puts the app in **Pinned Mode**; clearing it returns to **Auto Mode** (Nearest Station). Exists to support fetching predictions for a place before travelling there, then viewing them offline on arrival.
+_Avoid_: Saved station, favourite, bookmark.
+
+**Offline Range**:
+The number of days of predictions a Pinned download fetches and stores ahead of time. The user picks one of 7, 15, 30, or 45 Days. Applies only in **Pinned Mode**; **Auto Mode** keeps its short, daily-refreshed window. The maximum (45) is bounded by the watch's persistent-storage ceiling.
 
 **Usable Station**:
 A Station the app is willing to fetch hilo predictions for. The criteria are Provider-specific: a **DFO** Station is Usable when `operating: true` **and** its `timeSeries` advertises the `wlp-hilo` product; a **NOAA** Station is Usable when it appears in the `type=tidepredictions` catalog (both reference and subordinate stations qualify — subordinate stations still return valid predictions). Station selection considers only Usable Stations; others are never fetched.
