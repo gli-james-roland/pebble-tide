@@ -1,21 +1,24 @@
 #!/usr/bin/env bash
 # Capture fresh store art from the emulators into screenshots/. For each watch
-# platform this produces THREE files that scripts/publish.sh then uploads:
+# platform this produces FOUR files that scripts/publish.sh then uploads:
 #
 #   screenshots/<plat>.png            static shot at the default (BC / DFO) location
 #   screenshots/<plat>-seattle.png    static shot forced to Seattle (NOAA)
+#   screenshots/<plat>-sydney.png     static shot forced to Sydney (BOM)
 #   screenshots/<plat>-animated.gif   the tide focus rolling forward 3 tides
 #
 # Refresh-the-listing flow:  make screenshots && make publish
 #
-# Seattle is forced by patching pypkjs's geolocation.py to hand back fixed
-# coordinates (the emulator has no set-location command and the app calls
-# navigator.geolocation). The patch is always restored on exit.
+# Seattle and Sydney are forced by patching pypkjs's geolocation.py to hand back
+# fixed coordinates (the emulator has no set-location command and the app calls
+# navigator.geolocation). The patch is always restored on exit, and between the
+# two forced sections so each starts from a clean file.
 #
 # Overrides:
 #   PEBBLE_SHOT_PLATFORMS    platforms to capture (default: gabbro chalk emery diorite)
 #   PEBBLE_SHOT_SETTLE       seconds to let the BC/DFO path render (default: 18)
 #   PEBBLE_SHOT_SETTLE_NOAA  seconds for the slower NOAA cold start (default: 40)
+#   PEBBLE_SHOT_SETTLE_BOM   seconds for the slower BOM cold start (default: 40)
 #   PEBBLE_SHOT_STEP_SETTLE  seconds between tide steps for the GIF (default: 2)
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -23,10 +26,13 @@ cd "$(dirname "$0")/.."
 PLATFORMS="${PEBBLE_SHOT_PLATFORMS:-gabbro chalk emery diorite}"
 SETTLE="${PEBBLE_SHOT_SETTLE:-18}"
 SETTLE_NOAA="${PEBBLE_SHOT_SETTLE_NOAA:-40}"
+SETTLE_BOM="${PEBBLE_SHOT_SETTLE_BOM:-40}"
 STEP_SETTLE="${PEBBLE_SHOT_STEP_SETTLE:-2}"
 GIF_STEPS=3                          # tides to roll forward in the animation
 SEATTLE_LAT=47.602638
 SEATTLE_LON=-122.339432              # NOAA station 9447130
+SYDNEY_LAT=-33.8543
+SYDNEY_LON=151.2253                  # BOM station NSW_TP007 (Fort Denison)
 
 command -v magick >/dev/null || { echo "error: ImageMagick 'magick' is required for the GIF" >&2; exit 1; }
 
@@ -43,9 +49,12 @@ restore_geo() {
 trap restore_geo EXIT
 
 # Insert an early return into _get_position that hands back fixed coordinates.
-patch_geo_seattle() {
+# Usage: patch_geo NAME LAT LON. Always restore_geo before patching again so
+# each call starts from a clean geolocation.py.
+patch_geo() {
+  local name="$1" lat="$2" lon="$3"
   cp "$GEO_PY" "$GEO_PY.bak"
-  LAT="$SEATTLE_LAT" LON="$SEATTLE_LON" "$PEBBLE_PY" - "$GEO_PY" <<'PY'
+  LAT="$lat" LON="$lon" "$PEBBLE_PY" - "$GEO_PY" <<'PY'
 import os, sys
 path = sys.argv[1]
 src = open(path).read()
@@ -61,7 +70,7 @@ override = (
 )
 open(path, "w").write(src.replace(marker, marker + override, 1))
 PY
-  echo "Patched geolocation.py -> Seattle ($SEATTLE_LAT, $SEATTLE_LON)"
+  echo "Patched geolocation.py -> $name ($lat, $lon)"
 }
 
 # Kill any emulator, wipe its data, install fresh, and let it render.
@@ -106,12 +115,22 @@ for plat in $PLATFORMS; do
 done
 
 # --- Seattle (NOAA): static shot, geolocation forced ------------------------
-patch_geo_seattle
+patch_geo "Seattle" "$SEATTLE_LAT" "$SEATTLE_LON"
 for plat in $PLATFORMS; do
   echo "Capturing $plat (Seattle) ..."
   launch_fresh "$plat" "$SETTLE_NOAA"
   shot "$plat" "screenshots/${plat}-seattle.png"
   echo "  -> screenshots/${plat}-seattle.png"
+done
+restore_geo
+
+# --- Sydney (BOM): static shot, geolocation forced --------------------------
+patch_geo "Sydney" "$SYDNEY_LAT" "$SYDNEY_LON"
+for plat in $PLATFORMS; do
+  echo "Capturing $plat (Sydney) ..."
+  launch_fresh "$plat" "$SETTLE_BOM"
+  shot "$plat" "screenshots/${plat}-sydney.png"
+  echo "  -> screenshots/${plat}-sydney.png"
 done
 restore_geo
 trap - EXIT
