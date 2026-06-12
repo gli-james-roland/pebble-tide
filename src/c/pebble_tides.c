@@ -733,18 +733,28 @@ static void prv_anim_update(Animation *a, AnimationProgress prog) {
 
 static const AnimationImplementation s_anim_impl = { .update = prv_anim_update };
 
+// The framework owns a scheduled animation and destroys it when it stops -- on
+// normal completion AND on animation_unschedule (which fires this with
+// finished=false). So we never destroy it ourselves; we just drop our reference
+// here. Otherwise the next prv_pan_to would unschedule/destroy an already-freed
+// handle, which the firmware rejects with "Animation ... does not exist".
+static void prv_anim_stopped(Animation *a, bool finished, void *context) {
+  s_pan_anim = NULL;
+}
+
+static const AnimationHandlers s_anim_handlers = { .stopped = prv_anim_stopped };
+
 // Pan the window center toward target_epoch. A press mid-pan cancels and
 // retargets from the current interpolated center (no queueing).
 static void prv_pan_to(int32_t target_epoch) {
   if (s_pan_anim) {
-    animation_unschedule(s_pan_anim);
-    animation_destroy(s_pan_anim);
-    s_pan_anim = NULL;
+    animation_unschedule(s_pan_anim);  // fires prv_anim_stopped -> s_pan_anim = NULL
   }
   s_pan_from = s_center_epoch;
   s_pan_to = target_epoch;
   s_pan_anim = animation_create();
   animation_set_implementation(s_pan_anim, &s_anim_impl);
+  animation_set_handlers(s_pan_anim, s_anim_handlers, NULL);
   animation_set_duration(s_pan_anim, 250);
   animation_set_curve(s_pan_anim, AnimationCurveEaseInOut);
   animation_schedule(s_pan_anim);
@@ -888,9 +898,7 @@ static void prv_init(void) {
 
 static void prv_deinit(void) {
   if (s_pan_anim) {
-    animation_unschedule(s_pan_anim);
-    animation_destroy(s_pan_anim);
-    s_pan_anim = NULL;
+    animation_unschedule(s_pan_anim);  // prv_anim_stopped nulls s_pan_anim; framework destroys
   }
   tick_timer_service_unsubscribe();
   gpath_destroy(s_up_arrow);
