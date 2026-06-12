@@ -10,7 +10,7 @@ var catalog = require('./catalog');
 var orchestrate = require('./orchestrate');
 var STATIONS = require('./stations');
 
-var CATALOG_PROVIDERS = ['dfo', 'noaa'];
+var CATALOG_PROVIDERS = ['dfo', 'noaa', 'bom'];
 
 // Issue #9: phone-side display config. Two settings — height units (feet/metres)
 // and clock format (12h/24h) — sync to the watch on their own AppMessage
@@ -47,24 +47,44 @@ function todayStr() {
   return d.getFullYear() + '-' + m + '-' + day;
 }
 
-function fetchJson(url, cb) {
+// Low-level GET. headers is an optional { name: value } map applied after open()
+// (BOM needs a browser User-Agent or it returns "Access Denied"). Hands back the
+// raw responseText so text providers (BOM HTML) and JSON providers share one path.
+function fetchRaw(url, headers, cb) {
   var xhr = new XMLHttpRequest();
   xhr.open('GET', url, true);
   xhr.timeout = 20000;
+  if (headers) {
+    Object.keys(headers).forEach(function (name) {
+      try {
+        xhr.setRequestHeader(name, headers[name]);
+      } catch (e) { /* a forbidden header must not kill the request */ }
+    });
+  }
   xhr.onload = function () {
     if (xhr.status < 200 || xhr.status >= 300) {
       cb('status ' + xhr.status, null);
       return;
     }
-    try {
-      cb(null, JSON.parse(xhr.responseText));
-    } catch (err) {
-      cb('parse: ' + err, null);
-    }
+    cb(null, xhr.responseText);
   };
   xhr.onerror = function () { cb('network error', null); };
   xhr.ontimeout = function () { cb('timeout', null); };
   xhr.send();
+}
+
+function fetchJson(url, cb, headers) {
+  fetchRaw(url, headers || null, function (err, text) {
+    if (err) {
+      cb(err, null);
+      return;
+    }
+    try {
+      cb(null, JSON.parse(text));
+    } catch (e) {
+      cb('parse: ' + e, null);
+    }
+  });
 }
 
 function readJson(key) {
@@ -121,13 +141,14 @@ function fetchWeek(station, distanceKm) {
   var now = new Date();
   var from = new Date(now.getTime() - BACK_DAYS * 24 * 60 * 60 * 1000);
   var to = new Date(now.getTime() + WEEK_DAYS * 24 * 60 * 60 * 1000);
-  var hiloUrl = providers.forStation(station).hiloUrl(station, from, to);
+  var adapter = providers.forStation(station);
+  var hiloUrl = adapter.hiloUrl(station, from, to);
   var sunDays = sunDaysForWindow(from, to, station);
 
   // The watch draws a cosine curve between extrema (ADR 0002), so we only need
-  // the high/low series -- no hourly wlp curve to fetch or cache. pointsFor
-  // routes by provider and owns the response shape (DFO array vs NOAA object).
-  fetchJson(hiloUrl, function (e1, raw) {
+  // the high/low series. pointsFor routes by provider and owns the response
+  // shape (DFO array, NOAA object, BOM HTML string).
+  function handle(e1, raw) {
     var points = providers.pointsFor(station, e1, raw);
     if (points.length === 0) {
       console.log('hilo fetch failed (' + e1 + '); keeping cache');
@@ -137,7 +158,13 @@ function fetchWeek(station, distanceKm) {
     sendBlob(u8, station.id, function () {
       writeJson(META_KEY, { date: todayStr(), stationId: station.id, version: blob.BLOB_VERSION });
     });
-  });
+  }
+
+  if (adapter.responseFormat === 'text') {
+    fetchRaw(hiloUrl, adapter.requestHeaders || null, handle);
+  } else {
+    fetchJson(hiloUrl, handle, adapter.requestHeaders);
+  }
 }
 
 function maybeRefresh(station, distanceKm) {
@@ -180,7 +207,7 @@ function fetchCatalogSlice(name) {
         console.log(name + ' catalog parse failed (' + e + '); keeping last-good');
         resolve({ ok: false });
       }
-    });
+    }, adapter.requestHeaders);
   });
 }
 
@@ -237,6 +264,7 @@ function onPosition(pos) {
     id: result.station.id, officialName: result.station.officialName,
     latitude: result.station.latitude, longitude: result.station.longitude,
     operating: result.station.operating, provider: result.station.provider,
+    tz: result.station.tz, region: result.station.region,
     distanceKm: result.distanceKm,
   });
   maybeRefresh(result.station, result.distanceKm);
