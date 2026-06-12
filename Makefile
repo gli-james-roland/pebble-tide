@@ -1,5 +1,5 @@
 # Convenience wrappers around the Pebble SDK toolchain.
-.PHONY: build install clean test test-live release publish screenshots
+.PHONY: build install clean test test-live release publish screenshots emu-australia emu-seattle emu-vancouver
 
 build:        ## build the .pbw for all platforms
 	pebble build
@@ -24,3 +24,12 @@ publish:      ## build + publish to the repebble appstore (run `pebble login` fi
 
 screenshots:  ## capture fresh store screenshots into screenshots/ (emulators)
 	./scripts/screenshots.sh
+
+emu-australia: ## run the gabbro emulator forced to Sydney, AU (exercises BOM)
+	./scripts/emulate.sh australia
+
+emu-seattle:  ## run the gabbro emulator forced to Seattle (exercises NOAA)
+	./scripts/emulate.sh seattle
+
+emu-vancouver: ## run the gabbro emulator forced to Vancouver (exercises DFO)
+	./scripts/emulate.sh vancouver

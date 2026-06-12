@@ -7,6 +7,7 @@
 //   { dfo:  { stations: [...], fetchedAt: <ms epoch> },
 //     noaa: { stations: [...], fetchedAt: <ms epoch> } }
 // Each slice holds trimmed catalog records: { id, name, lat, lng, provider }.
+// BOM records also carry tz (IANA timezone) and region (state code, e.g. "TAS").
 //
 // Storage is injected (a localStorage-like { getItem, setItem }) so tests can
 // pass a fake; index.js passes the real localStorage.
@@ -46,7 +47,7 @@ function writeSlice(storage, provider, stations, fetchedAt, version) {
 //   { id, officialName, operating, latitude, longitude, provider }
 // Catalog entries are usable by construction, so operating is forced true.
 function normalizeCatalogRecord(rec) {
-  return {
+  var out = {
     id: rec.id,
     officialName: rec.name,
     operating: true,
@@ -54,6 +55,15 @@ function normalizeCatalogRecord(rec) {
     longitude: rec.lng,
     provider: rec.provider,
   };
+  // BOM-only: hiloUrl needs the station's timezone and region. Carry them
+  // through only when present so NOAA/DFO records are unaffected.
+  if (rec.tz != null) {
+    out.tz = rec.tz;
+  }
+  if (rec.region != null) {
+    out.region = rec.region;
+  }
+  return out;
 }
 
 // One candidate list = every present cache slice (normalized), PLUS seed

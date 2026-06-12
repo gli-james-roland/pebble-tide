@@ -5,6 +5,7 @@
 // later (issue #31).
 
 var REGISTRY = {
+  bom: require('./bom'),
   dfo: require('./dfo'),
   noaa: require('./noaa'),
 };
