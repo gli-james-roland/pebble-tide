@@ -44,3 +44,19 @@ test('parseCatalog returns [] on null/garbage/missing features', () => {
   assert.deepStrictEqual(bom.parseCatalog({}), []);
   assert.deepStrictEqual(bom.parseCatalog({ features: 'nope' }), []);
 });
+
+test('hiloUrl builds the getTidesTable URL with aac/date/days/region/tz', () => {
+  const station = {
+    id: 'TAS_TP003', provider: 'bom', region: 'TAS', tz: 'Australia/Hobart',
+  };
+  const from = new Date('2026-06-10T00:00:00Z');
+  const to = new Date('2026-06-18T00:00:00Z'); // 8 days
+  const url = bom.hiloUrl(station, from, to);
+  assert.ok(url.indexOf('getTidesTable.php') !== -1, url);
+  assert.ok(url.indexOf('type=tide') !== -1);
+  assert.ok(url.indexOf('aac=TAS_TP003') !== -1);
+  assert.ok(url.indexOf('date=10-06-2026') !== -1, 'DD-MM-YYYY of from: ' + url);
+  assert.ok(url.indexOf('days=8') !== -1, 'whole-day span: ' + url);
+  assert.ok(url.indexOf('region=TAS') !== -1);
+  assert.ok(url.indexOf('tz=Australia%2FHobart') !== -1, 'tz url-encoded: ' + url);
+});

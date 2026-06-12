@@ -41,8 +41,39 @@ function parseCatalog(json) {
   return out;
 }
 
+var TABLE_HOST =
+  'https://www.bom.gov.au/australia/tides/scripts/getTidesTable.php';
+var DAY_MS = 24 * 60 * 60 * 1000;
+
+// BOM's date param is DD-MM-YYYY. Use UTC components so the URL is deterministic
+// in tests; the app over-fetches (1 day back + 7 forward) so a one-day tz slack
+// is harmless.
+function dmy(date) {
+  var d = ('0' + date.getUTCDate()).slice(-2);
+  var m = ('0' + (date.getUTCMonth() + 1)).slice(-2);
+  return d + '-' + m + '-' + date.getUTCFullYear();
+}
+
+// getTidesTable returns one day-table per day starting at `date`, for `days`
+// days. region and tz come off the station record (BOM-only fields from
+// parseCatalog). tz_js is a display label BOM ignores for the data, left empty.
+function hiloUrl(station, from, to) {
+  var days = Math.ceil((to.getTime() - from.getTime()) / DAY_MS);
+  return TABLE_HOST +
+    '?type=tide' +
+    '&aac=' + encodeURIComponent(station.id) +
+    '&date=' + dmy(from) +
+    '&days=' + days +
+    '&region=' + encodeURIComponent(station.region) +
+    '&offset=0&offsetName=' +
+    '&tz=' + encodeURIComponent(station.tz) +
+    '&tz_js=';
+}
+
 module.exports = {
   catalogUrl: catalogUrl,
   parseCatalog: parseCatalog,
+  hiloUrl: hiloUrl,
   CATALOG_URL: CATALOG_URL,
+  TABLE_HOST: TABLE_HOST,
 };
