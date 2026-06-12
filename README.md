@@ -95,6 +95,9 @@ The build and appstore upload are scriptable with the Pebble CLI.
 make build      # build the .pbw
 make install    # build + run on the gabbro emulator
 make test       # run the JS unit tests
+make emu-australia  # run the emulator forced to Sydney (exercises BOM)
+make emu-seattle    # run the emulator forced to Seattle (exercises NOAA)
+make emu-vancouver  # run the emulator forced to Vancouver (exercises DFO)
 make release    # cut a GitHub release with the .pbw (tag from package.json)
 make screenshots# capture fresh store screenshots into screenshots/
 make publish    # build + upload to the repebble appstore
