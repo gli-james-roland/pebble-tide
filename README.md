@@ -30,6 +30,12 @@ US station (NOAA) — Seattle:
 |---|---|---|---|
 | ![gabbro Seattle](screenshots/gabbro-seattle.png) | ![emery Seattle](screenshots/emery-seattle.png) | ![chalk Seattle](screenshots/chalk-seattle.png) | ![diorite Seattle](screenshots/diorite-seattle.png) |
 
+Australian station (BOM) — Sydney:
+
+| Pebble Round 2 (gabbro) | Pebble Time 2 (emery) | Time Round (chalk) | Black & white (diorite) |
+|---|---|---|---|
+| ![gabbro Sydney](screenshots/gabbro-sydney.png) | ![emery Sydney](screenshots/emery-sydney.png) | ![chalk Sydney](screenshots/chalk-sydney.png) | ![diorite Sydney](screenshots/diorite-sydney.png) |
+
 ## Controls
 
 - **Up / Down**: step to the previous / next tide (the window re-centres with a
