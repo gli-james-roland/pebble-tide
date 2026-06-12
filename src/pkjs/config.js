@@ -52,12 +52,18 @@ function pageUrl(pinRec) {
   var pinned = pinRec && pinRec.mode === 'pinned';
   var place = (pinRec && pinRec.place) || '';
   var range = (pinRec && pinRec.rangeDays) || 15;
+  // Escape user/station-derived text before inlining into the page HTML so a
+  // '<', '&', or '"' in a place or station name can't break rendering or inject.
+  function escHtml(v) {
+    return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
   var status = '';
   if (pinned && pinRec.station) {
-    status = '<p class="sub">Pinned: ' + (pinRec.station.officialName || '?') +
-      ' — ~' + (pinRec.distanceKm || 0) + ' km from "' + place + '"</p>';
+    status = '<p class="sub">Pinned: ' + escHtml(pinRec.station.officialName || '?') +
+      ' — ~' + (pinRec.distanceKm || 0) + ' km from "' + escHtml(place) + '"</p>';
   } else if (pinned && pinRec.error) {
-    status = '<p class="sub" style="color:#c00">' + pinRec.error + '</p>';
+    status = '<p class="sub" style="color:#c00">' + escHtml(pinRec.error) + '</p>';
   }
   var rangeInputs = [7, 15, 30, 45].map(function (d) {
     return '<label><input type="radio" name="range" value="' + d + '"' +
@@ -95,7 +101,7 @@ function pageUrl(pinRec) {
     '<fieldset><legend>Tide location</legend>' + status +
     '<label><input type="radio" name="locationMode" value="auto"' + (pinned ? '' : ' checked') + '>Use my location</label>' +
     '<label><input type="radio" name="locationMode" value="pinned"' + (pinned ? ' checked' : '') + '>Pin a place for offline</label>' +
-    '<label>Place: <input type="text" name="place" value="' + place.replace(/"/g, '&quot;') + '" placeholder="e.g. Tofino BC"></label>' +
+    '<label>Place: <input type="text" name="place" value="' + escHtml(place) + '" placeholder="e.g. Tofino BC"></label>' +
     rangeInputs +
     '</fieldset>' +
     '<button id="save">Save</button>' +
