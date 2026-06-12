@@ -70,6 +70,14 @@ function hiloUrl(station, from, to) {
     '&tz_js=';
 }
 
+// BOM blocks non-browser clients (returns "Access Denied") and serves HTML, not
+// JSON. The fetch layer (index.js) reads these two flags: responseFormat 'text'
+// hands parseHilo the raw response string; requestHeaders are applied to every
+// BOM request (catalog and table).
+var BROWSER_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+  '(KHTML, like Gecko) Chrome/120.0 Safari/537.36';
+
 // getTidesTable returns HTML. Each tide cell carries machine-oriented hooks:
 // a <td> with data-time-utc (already UTC ISO) plus a high-tide/low-tide class,
 // and a sibling <td class="height high-tide|low-tide">X.XX m</td>. Filler cells
@@ -108,6 +116,8 @@ module.exports = {
   parseCatalog: parseCatalog,
   hiloUrl: hiloUrl,
   parseHilo: parseHilo,
+  responseFormat: 'text',
+  requestHeaders: { 'User-Agent': BROWSER_UA },
   CATALOG_URL: CATALOG_URL,
   TABLE_HOST: TABLE_HOST,
 };

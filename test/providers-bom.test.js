@@ -86,3 +86,16 @@ test('parseHilo returns [] on non-string / empty / no matches', () => {
   assert.deepStrictEqual(bom.parseHilo(''), []);
   assert.deepStrictEqual(bom.parseHilo('<html>no tides here</html>'), []);
 });
+
+const registry = require('../src/pkjs/providers');
+
+test('bom declares text responseFormat and a browser User-Agent', () => {
+  assert.strictEqual(bom.responseFormat, 'text');
+  assert.ok(bom.requestHeaders);
+  assert.ok(/Mozilla\/5\.0/.test(bom.requestHeaders['User-Agent']));
+});
+
+test('registry routes provider:"bom" to the BOM adapter', () => {
+  const adapter = registry.forStation({ provider: 'bom', id: 'TAS_TP003' });
+  assert.strictEqual(adapter, bom);
+});
