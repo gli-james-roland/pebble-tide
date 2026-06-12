@@ -206,8 +206,8 @@ test('parseResponse extracts location fields from the config JSON', () => {
   assert.deepStrictEqual(r, { mode: 'pinned', place: 'Sydney', rangeDays: 45 });
 });
 
-test('parseResponse defaults to auto and trims; returns null on garbage', () => {
-  assert.strictEqual(pin.parseResponse('{').valueOf === undefined ? null : pin.parseResponse('{'), null);
+test('parseResponse returns null on garbage and defaults to auto otherwise', () => {
+  assert.strictEqual(pin.parseResponse('{'), null);
   assert.strictEqual(pin.parseResponse(JSON.stringify({})).mode, 'auto');
 });
 ```
