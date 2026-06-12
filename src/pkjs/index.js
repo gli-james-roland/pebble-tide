@@ -9,6 +9,8 @@ var providers = require('./providers');
 var catalog = require('./catalog');
 var orchestrate = require('./orchestrate');
 var STATIONS = require('./stations');
+var pin = require('./pin');
+var geocode = require('./geocode');
 
 var CATALOG_PROVIDERS = ['dfo', 'noaa', 'bom'];
 
@@ -303,14 +305,45 @@ Pebble.addEventListener('ready', function () {
 });
 
 Pebble.addEventListener('showConfiguration', function () {
-  Pebble.openURL(config.pageUrl());
+  Pebble.openURL(config.pageUrl(pin.read(localStorage)));
 });
 
 // On save, persist the chosen settings to localStorage then re-send them on the
 // config channel so the watch re-renders without refetching. No response = user
 // cancelled, leave settings unchanged.
 Pebble.addEventListener('webviewclosed', function (e) {
-  if (!e || !e.response) { return; }
+  if (!e || !e.response) { return; }     // user cancelled
   config.save(e.response);
   sendConfig();
+
+  var loc = pin.parseResponse(e.response);
+  if (!loc) { return; }
+
+  if (loc.mode === 'auto') {
+    pin.clear(localStorage);
+    locate();                            // resume Auto immediately
+    return;
+  }
+  if (!loc.place) {
+    pin.write(localStorage, { mode: 'pinned', place: '', station: null, rangeDays: loc.rangeDays, distanceKm: 0, error: 'No place entered' });
+    return;
+  }
+  // Pinned: geocode the place, pick the nearest Usable Station, download the range.
+  geocode.geocode(loc.place, function (coords) {
+    if (!coords) {
+      pin.write(localStorage, { mode: 'pinned', place: loc.place, station: null, rangeDays: loc.rangeDays, distanceKm: 0, error: 'Couldn\'t find "' + loc.place + '"' });
+      return;
+    }
+    var result = selectStation(coords.lat, coords.lon);
+    if (!result) {
+      pin.write(localStorage, { mode: 'pinned', place: loc.place, station: null, rangeDays: loc.rangeDays, distanceKm: 0, error: 'No station found near "' + loc.place + '"' });
+      return;
+    }
+    var st = result.station;
+    pin.write(localStorage, {
+      mode: 'pinned', place: loc.place, rangeDays: loc.rangeDays, distanceKm: result.distanceKm, error: null,
+      station: { id: st.id, officialName: st.officialName, latitude: st.latitude, longitude: st.longitude, operating: st.operating, provider: st.provider, tz: st.tz, region: st.region },
+    });
+    fetchRange(st, result.distanceKm, loc.rangeDays);
+  });
 });
