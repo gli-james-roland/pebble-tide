@@ -7,6 +7,8 @@ notes; `publish.sh` posts the matching version's section to the appstore.
 Write the next release's notes as bullets under `## [Unreleased]`.
 
 ## [Unreleased]
+
+## [1.0.3] - 2026-06-12
 - Australia and the South Pacific tide coverage via the Bureau of Meteorology (BOM).
 - Fixed a pan-animation warning ("animation.c ... does not exist") on tide stepping.
 
