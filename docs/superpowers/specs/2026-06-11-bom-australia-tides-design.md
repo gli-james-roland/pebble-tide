@@ -126,11 +126,12 @@ The catalog fetch stays JSON for all three (BOM's catalog is JSON).
 
 ### Browser User-Agent header
 
-The fetch for BOM URLs must set a browser `User-Agent`. This is the single
-highest-risk unknown: browsers forbid scripts from setting `User-Agent`, but
-PebbleKit JS has historically allowed it. **Verify on a real phone before
-building anything else** (see Phase 0). If PebbleKit JS cannot set `User-Agent`
-on-device, the BOM path is dead and we revisit the data-source decision.
+The fetch for BOM URLs must set a browser `User-Agent`, or BOM returns "Access
+Denied". We assume PebbleKit JS allows setting `User-Agent` on an
+`XMLHttpRequest` (it has historically). The fetch layer sets a browser UA on
+BOM requests. End-to-end on-device testing in Phase 3 confirms it works against
+the live endpoint; if the UA turns out to be stripped on-device, the BOM path
+dies and we revisit the data source.
 
 ### Registration and seed
 
@@ -161,7 +162,7 @@ any other; its `provider: 'bom'` tag routes the fetch.
 - Catalog fetch failure for BOM keeps the old BOM slice (existing per-provider
   isolation).
 - "Access Denied" (missing/blocked UA) surfaces as an empty parse → cache held.
-  Phase 0 exists to catch this before it ships.
+  Phase 3 end-to-end testing catches this before it ships.
 
 ## Testing (TDD, Node native test runner)
 
@@ -186,10 +187,6 @@ Fixtures: a trimmed `tide_prediction_sites.json` slice and a real
 
 ## Phases
 
-- **Phase 0 — De-risk (do first).** On a real phone, confirm PebbleKit JS can
-  set a browser `User-Agent` on an `XMLHttpRequest` and that the BOM endpoints
-  answer. If not, stop and revisit the data source. Tracer bullet, no full
-  feature.
 - **Phase 1 — BOM adapter.** `bom.js` four functions, TDD against fixtures.
 - **Phase 2 — Plumbing.** `responseFormat` text branch; `tz`/`region` through
   catalog cache; register `bom`; seed stations.
