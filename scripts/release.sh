@@ -33,6 +33,13 @@ fi
 # Make sure we are releasing on top of what is already on the remote.
 git pull --ff-only origin master
 
+# Release notes come from CHANGELOG.md. Require a non-empty [Unreleased] section
+# before mutating anything, so we never cut a release with empty notes.
+if [ -z "$(scripts/changelog.sh extract Unreleased)" ]; then
+  echo "error: write release notes under '## [Unreleased]' in CHANGELOG.md first" >&2
+  exit 1
+fi
+
 # Test before mutating anything -- a test failure here leaves the tree clean so
 # the release can simply be re-run after a fix.
 node --test
@@ -43,22 +50,30 @@ npm version "$BUMP" --no-git-tag-version >/dev/null
 VERSION="$(python3 -c "import json;print(json.load(open('package.json'))['version'])")"
 TAG="v$VERSION"
 
-# If the build fails after the bump, revert package.json so the dirty-tree
-# guard doesn't block the next attempt. Cleared once the bump is committed.
-trap 'git checkout -- package.json' ERR
+# If the build fails after the bump, revert package.json and CHANGELOG.md so the
+# dirty-tree guard doesn't block the next attempt. Cleared once committed.
+trap 'git checkout -- package.json CHANGELOG.md' ERR
 
 echo "Releasing Pebble Tides $VERSION ..."
+
+# Promote the [Unreleased] notes to this version + date, then capture them for
+# the GitHub release. CHANGELOG.md is committed with the version bump below.
+scripts/changelog.sh promote "$VERSION" "$(date +%F)"
+NOTES="$(scripts/changelog.sh extract "$VERSION")"
 
 # Build after the bump so the .pbw embeds the new version.
 pebble build
 
-git add package.json
+git add package.json CHANGELOG.md
 git commit -m "chore: bump version to $TAG"
 trap - ERR
 git push origin master
 
+NOTES_FILE="$(mktemp)"
+printf '%s\n' "$NOTES" > "$NOTES_FILE"
 gh release create "$TAG" build/*.pbw \
   --title "Pebble Tides $VERSION" \
-  --generate-notes
+  --notes-file "$NOTES_FILE"
+rm -f "$NOTES_FILE"
 
 echo "Done. Released $TAG."

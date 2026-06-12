@@ -14,6 +14,15 @@ CATEGORY="${PEBBLE_CATEGORY:-Tools & Utilities}"
 NAME="Pebble Tides"
 VERSION="$(python3 -c "import json;print(json.load(open('package.json'))['version'])")"
 
+# Release notes: explicit RELEASE_NOTES override, else the version's CHANGELOG.md
+# section (the same notes release.sh posts to the GitHub release). Fail fast
+# rather than publishing a placeholder.
+NOTES="${RELEASE_NOTES:-$(scripts/changelog.sh extract "$VERSION")}"
+if [ -z "$NOTES" ]; then
+  echo "error: no release notes for $VERSION in CHANGELOG.md (set RELEASE_NOTES to override)" >&2
+  exit 1
+fi
+
 echo "Building $NAME $VERSION ..."
 pebble build
 
@@ -57,7 +66,7 @@ PEBBLE_PY="$(sed -n '1s/^#!//p' "$(command -v pebble)")"
   --version "$VERSION" \
   --category "$CATEGORY" \
   --description "$(cat store/description.txt)" \
-  --release-notes "${RELEASE_NOTES:-Version $VERSION}" \
+  --release-notes "$NOTES" \
   --icon-small resources/images/icon_small_48.png \
   --icon-large resources/images/appstore_icon.png \
   ${SHOTS:+--screenshots "${SHOTS[@]}"} \

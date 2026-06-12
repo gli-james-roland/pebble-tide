@@ -117,3 +117,9 @@ scripts/publish.sh --is-published
 Releases are manual: run `make publish` (or `make release`) from a machine where
 you've run `pebble login`. There is no CI auto-publish, because the appstore
 login needs an interactive browser step that can't run headless.
+
+Release notes live in `CHANGELOG.md`. Before releasing, write the changes as
+bullets under `## [Unreleased]`. `make release` promotes that section to the new
+version and posts it as the GitHub release notes; `make publish` posts the same
+version's section to the appstore (override with `RELEASE_NOTES=...`). Both fail
+fast if the section is empty, so a release never ships with placeholder notes.
