@@ -60,3 +60,29 @@ test('hiloUrl builds the getTidesTable URL with aac/date/days/region/tz', () => 
   assert.ok(url.indexOf('region=TAS') !== -1);
   assert.ok(url.indexOf('tz=Australia%2FHobart') !== -1, 'tz url-encoded: ' + url);
 });
+
+const TABLE_HTML = fs.readFileSync(
+  path.join(__dirname, 'fixtures', 'bom-tides-table.html'), 'utf8'
+);
+
+test('parseHilo extracts {epoch, heightCm, kind} from the HTML table', () => {
+  const pts = bom.parseHilo(TABLE_HTML);
+  assert.deepStrictEqual(pts, [
+    { epoch: 1781115120, heightCm: 112, kind: 1 },
+    { epoch: 1781134620, heightCm: 75, kind: 2 },
+    { epoch: 1781159100, heightCm: 149, kind: 1 },
+    { epoch: 1781185080, heightCm: 62, kind: 2 },
+  ]);
+});
+
+test('parseHilo classifies high=1 low=2 from cell class', () => {
+  const pts = bom.parseHilo(TABLE_HTML);
+  assert.strictEqual(pts[0].kind, 1); // High
+  assert.strictEqual(pts[1].kind, 2); // Low
+});
+
+test('parseHilo returns [] on non-string / empty / no matches', () => {
+  assert.deepStrictEqual(bom.parseHilo(null), []);
+  assert.deepStrictEqual(bom.parseHilo(''), []);
+  assert.deepStrictEqual(bom.parseHilo('<html>no tides here</html>'), []);
+});

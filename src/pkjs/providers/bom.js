@@ -70,10 +70,44 @@ function hiloUrl(station, from, to) {
     '&tz_js=';
 }
 
+// getTidesTable returns HTML. Each tide cell carries machine-oriented hooks:
+// a <td> with data-time-utc (already UTC ISO) plus a high-tide/low-tide class,
+// and a sibling <td class="height high-tide|low-tide">X.XX m</td>. Filler cells
+// lack the high/low class and are skipped. We pull the two sequences in document
+// order and zip them. Regex, not a DOM lib: PebbleKit JS has no DOMParser and we
+// avoid bundling a parser (see spec). Brittleness is pinned by the HTML fixture.
+function parseHilo(html) {
+  if (typeof html !== 'string') {
+    return [];
+  }
+  var times = [];
+  var reTime = /data-time-utc="([^"]+)"[^>]*class="[^"]*(high|low)-tide/g;
+  var m;
+  while ((m = reTime.exec(html)) !== null) {
+    times.push({ iso: m[1], kind: m[2] === 'high' ? 1 : 2 });
+  }
+  var heights = [];
+  var reHeight = /class="height (?:high|low)-tide"[^>]*>\s*([0-9.]+)\s*m/g;
+  while ((m = reHeight.exec(html)) !== null) {
+    heights.push(Math.round(parseFloat(m[1]) * 100));
+  }
+  var n = Math.min(times.length, heights.length);
+  var out = [];
+  for (var i = 0; i < n; i++) {
+    out.push({
+      epoch: Math.floor(Date.parse(times[i].iso) / 1000),
+      heightCm: heights[i],
+      kind: times[i].kind,
+    });
+  }
+  return out;
+}
+
 module.exports = {
   catalogUrl: catalogUrl,
   parseCatalog: parseCatalog,
   hiloUrl: hiloUrl,
+  parseHilo: parseHilo,
   CATALOG_URL: CATALOG_URL,
   TABLE_HOST: TABLE_HOST,
 };
