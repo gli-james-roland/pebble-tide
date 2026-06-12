@@ -46,7 +46,7 @@ function writeSlice(storage, provider, stations, fetchedAt, version) {
 //   { id, officialName, operating, latitude, longitude, provider }
 // Catalog entries are usable by construction, so operating is forced true.
 function normalizeCatalogRecord(rec) {
-  return {
+  var out = {
     id: rec.id,
     officialName: rec.name,
     operating: true,
@@ -54,6 +54,15 @@ function normalizeCatalogRecord(rec) {
     longitude: rec.lng,
     provider: rec.provider,
   };
+  // BOM-only: hiloUrl needs the station's timezone and region. Carry them
+  // through only when present so NOAA/DFO records are unaffected.
+  if (rec.tz != null) {
+    out.tz = rec.tz;
+  }
+  if (rec.region != null) {
+    out.region = rec.region;
+  }
+  return out;
 }
 
 // One candidate list = every present cache slice (normalized), PLUS seed

@@ -92,3 +92,27 @@ test('selection picks a NOAA catalog station beyond the seed for a US coastal co
   assert.strictEqual(result.station.id, '9449880');
   assert.strictEqual(result.station.provider, 'noaa');
 });
+
+test('unionStations preserves tz/region for BOM records', () => {
+  var cache = {
+    bom: { stations: [
+      { id: 'TAS_TP003', name: 'Hobart', lat: -42.877, lng: 147.341,
+        provider: 'bom', tz: 'Australia/Hobart', region: 'TAS' },
+    ], fetchedAt: 1 },
+  };
+  var out = catalog.unionStations(cache, []);
+  assert.strictEqual(out[0].tz, 'Australia/Hobart');
+  assert.strictEqual(out[0].region, 'TAS');
+});
+
+test('unionStations omits tz/region for non-BOM records', () => {
+  var cache = {
+    noaa: { stations: [
+      { id: '9449880', name: 'Friday Harbor', lat: 48.55, lng: -123.0,
+        provider: 'noaa' },
+    ], fetchedAt: 1 },
+  };
+  var out = catalog.unionStations(cache, []);
+  assert.ok(!('tz' in out[0]));
+  assert.ok(!('region' in out[0]));
+});
