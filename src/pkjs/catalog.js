@@ -7,6 +7,7 @@
 //   { dfo:  { stations: [...], fetchedAt: <ms epoch> },
 //     noaa: { stations: [...], fetchedAt: <ms epoch> } }
 // Each slice holds trimmed catalog records: { id, name, lat, lng, provider }.
+// BOM records also carry tz (IANA timezone) and region (state code, e.g. "TAS").
 //
 // Storage is injected (a localStorage-like { getItem, setItem }) so tests can
 // pass a fake; index.js passes the real localStorage.

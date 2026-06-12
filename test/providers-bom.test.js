@@ -122,3 +122,20 @@ test('parseHilo returns [] when time and height counts differ', () => {
     '<td class="height high-tide">1.12 m</td>';
   assert.deepStrictEqual(bom.parseHilo(html), []);
 });
+
+const TABLE_HTML_2DAY = fs.readFileSync(
+  path.join(__dirname, 'fixtures', 'bom-tides-table-2day.html'), 'utf8'
+);
+
+// Regression pin: multi-day fixture (Hobart, 11-12 Jun 2026).
+// The live endpoint always returns multiple day-tables; this ensures
+// parseHilo spans them all and produces a contiguous, ordered result.
+test('parseHilo parses a real 2-day fixture (Hobart 11-12 Jun 2026)', () => {
+  const pts = bom.parseHilo(TABLE_HTML_2DAY);
+  assert.strictEqual(pts.length, 7);
+  assert.deepStrictEqual(pts[0],  { epoch: 1781115120, heightCm: 112, kind: 1 });
+  assert.deepStrictEqual(pts[pts.length - 1], { epoch: 1781247780, heightCm: 158, kind: 1 });
+  // Points must span more than one UTC calendar day.
+  const days = new Set(pts.map(p => new Date(p.epoch * 1000).toISOString().slice(0, 10)));
+  assert.ok(days.size >= 2, 'expected points across >=2 UTC dates, got: ' + JSON.stringify([...days]));
+});
