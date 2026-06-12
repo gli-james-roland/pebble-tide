@@ -1,0 +1,32 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [147.34095277777777, -42.87732777777778] },
+      "properties": {
+        "PORT_NAME": "Hobart", "AAC": "TAS_TP003", "STATE_CODE": "TAS",
+        "TIME_ZONE": "Australia/Hobart", "LAT": -42.87732777777778, "LON": 147.34095277777777,
+        "AVAIL_FLAG": "Y", "TYPE": "TIDE"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [151.2253, -33.8543] },
+      "properties": {
+        "PORT_NAME": "Sydney (Fort Denison)", "AAC": "NSW_TP007", "STATE_CODE": "NSW",
+        "TIME_ZONE": "Australia/Sydney", "LAT": -33.8543, "LON": 151.2253,
+        "AVAIL_FLAG": "Y", "TYPE": "TIDE"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [130.8459, -12.4718] },
+      "properties": {
+        "PORT_NAME": "Decommissioned Gauge", "AAC": "NT_TP999", "STATE_CODE": "NT",
+        "TIME_ZONE": "Australia/Darwin", "LAT": -12.4718, "LON": 130.8459,
+        "AVAIL_FLAG": "N", "TYPE": "TIDE"
+      }
+    }
+  ]
+}
