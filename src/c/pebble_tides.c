@@ -26,9 +26,15 @@
 // owns 10-18). Defaults below apply until the phone sends config.
 //   units: 0 = feet (default), 1 = metres
 //   clock: 0 = 12-hour AM/PM (default), 1 = 24-hour
-#define PERSIST_CONFIG_UNITS 20
-#define PERSIST_CONFIG_CLOCK 21
-#define PERSIST_CONFIG_MIDTIDE 22
+// Config keys live above the blob's chunk range. The blob occupies
+// PERSIST_BLOB_BASE (11) .. 11+ceil(MAX_BLOB_BYTES/256)-1; at 3072 bytes that is
+// 11..22, so config moved from 20/21/22 to 40/41/42 (migration in prv_load_config).
+#define PERSIST_CONFIG_UNITS 40
+#define PERSIST_CONFIG_CLOCK 41
+#define PERSIST_CONFIG_MIDTIDE 42
+#define PERSIST_CONFIG_UNITS_OLD 20
+#define PERSIST_CONFIG_CLOCK_OLD 21
+#define PERSIST_CONFIG_MIDTIDE_OLD 22
 #define UNITS_FEET 0
 #define UNITS_METRES 1
 #define CLOCK_12H 0
@@ -188,13 +194,24 @@ static void prv_load_persisted(void) {
 // Display config (issue #9): persist + format helpers
 // ---------------------------------------------------------------------------
 
+// Read a config int from new_key; if absent, migrate from the pre-3072-blob
+// old_key (and copy it forward) so the larger blob can reclaim 20/21/22.
+static int prv_config_int(uint32_t new_key, uint32_t old_key, int dflt) {
+  if (persist_exists(new_key)) {
+    return persist_read_int(new_key);
+  }
+  if (persist_exists(old_key)) {
+    int v = persist_read_int(old_key);
+    persist_write_int(new_key, v);
+    return v;
+  }
+  return dflt;
+}
+
 static void prv_load_config(void) {
-  s_units = persist_exists(PERSIST_CONFIG_UNITS)
-      ? persist_read_int(PERSIST_CONFIG_UNITS) : UNITS_FEET;
-  s_clock = persist_exists(PERSIST_CONFIG_CLOCK)
-      ? persist_read_int(PERSIST_CONFIG_CLOCK) : CLOCK_12H;
-  s_show_midtide = persist_exists(PERSIST_CONFIG_MIDTIDE)
-      ? persist_read_int(PERSIST_CONFIG_MIDTIDE) : 0;
+  s_units = prv_config_int(PERSIST_CONFIG_UNITS, PERSIST_CONFIG_UNITS_OLD, UNITS_FEET);
+  s_clock = prv_config_int(PERSIST_CONFIG_CLOCK, PERSIST_CONFIG_CLOCK_OLD, CLOCK_12H);
+  s_show_midtide = prv_config_int(PERSIST_CONFIG_MIDTIDE, PERSIST_CONFIG_MIDTIDE_OLD, 0);
 }
 
 // Format a height (stored in cm, metric source of truth) into buf per s_units.
