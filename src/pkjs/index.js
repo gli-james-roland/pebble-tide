@@ -137,10 +137,10 @@ function sunDaysForWindow(from, to, station) {
   return days;
 }
 
-function fetchWeek(station, distanceKm) {
+function fetchRange(station, distanceKm, forwardDays) {
   var now = new Date();
   var from = new Date(now.getTime() - BACK_DAYS * 24 * 60 * 60 * 1000);
-  var to = new Date(now.getTime() + WEEK_DAYS * 24 * 60 * 60 * 1000);
+  var to = new Date(now.getTime() + forwardDays * 24 * 60 * 60 * 1000);
   var adapter = providers.forStation(station);
   var hiloUrl = adapter.hiloUrl(station, from, to);
   var sunDays = sunDaysForWindow(from, to, station);
@@ -167,10 +167,15 @@ function fetchWeek(station, distanceKm) {
   }
 }
 
-function maybeRefresh(station, distanceKm) {
+function fetchWeek(station, distanceKm) {
+  fetchRange(station, distanceKm, WEEK_DAYS);
+}
+
+function maybeRefresh(station, distanceKm, forwardDays) {
+  var days = forwardDays || WEEK_DAYS;
   if (refresh.shouldRefresh(todayStr(), station.id, blob.BLOB_VERSION, readJson(META_KEY))) {
-    console.log('Refreshing week for ' + station.officialName);
-    fetchWeek(station, distanceKm);
+    console.log('Refreshing ' + days + ' days for ' + station.officialName);
+    fetchRange(station, distanceKm, days);
   } else {
     console.log('Cache is fresh for ' + station.officialName + '; not fetching');
   }
