@@ -290,7 +290,17 @@ function onPositionError(err) {
 
 Pebble.addEventListener('ready', function () {
   console.log('pebble_tides pkjs ready');
-  sendConfig(); // push saved display prefs (or defaults) so the watch renders correctly
+  sendConfig();
+
+  var p = pin.read(localStorage);
+  if (p.mode === 'pinned' && p.station) {
+    // Pinned Mode (ADR 0004/0005): no geolocation. Refresh the pinned station's
+    // range when online; fetchRange keeps the stored snapshot on failure (offline).
+    console.log('Pinned to ' + p.station.officialName + ' (' + p.rangeDays + 'd)');
+    maybeRefresh(p.station, p.distanceKm || 0, p.rangeDays);
+    return;
+  }
+
   var cache = catalog.readCache(localStorage);
   if (!orchestrate.hasAnyCache(cache)) {
     // Cold first run: await catalog fetch(es) so an out-of-seed-region user gets
