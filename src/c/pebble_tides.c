@@ -20,6 +20,13 @@
 #define FAR_WARNING_KM 500
 #define WINDOW_SECONDS (24 * 3600)  // full day, centered on the Focused Tide
 
+// Curve-pan animation length. Overridable at build time so the screenshot
+// tooling can slow the pan down (PEBBLE_TIDES_PAN_MS) and sample its frames;
+// the emulator screenshot round-trip is far slower than the 250ms default.
+#ifndef PAN_ANIM_DURATION_MS
+#define PAN_ANIM_DURATION_MS 250
+#endif
+
 #define PERSIST_BLOB_LEN 10
 #define PERSIST_BLOB_BASE 11
 
@@ -773,7 +780,7 @@ static void prv_pan_to(int32_t target_epoch) {
   s_pan_anim = animation_create();
   animation_set_implementation(s_pan_anim, &s_anim_impl);
   animation_set_handlers(s_pan_anim, s_anim_handlers, NULL);
-  animation_set_duration(s_pan_anim, 250);
+  animation_set_duration(s_pan_anim, PAN_ANIM_DURATION_MS);
   animation_set_curve(s_pan_anim, AnimationCurveEaseInOut);
   animation_schedule(s_pan_anim);
 }
