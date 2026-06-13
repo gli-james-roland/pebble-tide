@@ -16,6 +16,6 @@ Coverage: Pebble Tides covers
 - United States (NOAA) 
 - Australia and the South Pacific (Bureau of Meteorology, BOM)
 
-It picks the station nearest you. If you'd like another region added, let me know and I'm happy to look at adding it.
+It picks the station nearest you, or the one nearest a place you pin for an upcoming trip. If you'd like another region added, let me know and I'm happy to look at adding it.
 
 Controls: Up/Down step tides, long-press Up/Down jump a day, Select jumps to now, Back exits.
