@@ -46,8 +46,29 @@ function save(response) {
 }
 
 // Build the configuration page as a data: URI. Current settings are inlined so
-// the controls open pre-selected.
-function pageUrl() {
+// the controls open pre-selected. pinRec (optional) is the current pin record
+// from pin.js: { mode, place, rangeDays, distanceKm, station, error }.
+function pageUrl(pinRec) {
+  var pinned = pinRec && pinRec.mode === 'pinned';
+  var place = (pinRec && pinRec.place) || '';
+  var range = (pinRec && pinRec.rangeDays) || 15;
+  // Escape user/station-derived text before inlining into the page HTML so a
+  // '<', '&', or '"' in a place or station name can't break rendering or inject.
+  function escHtml(v) {
+    return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  var status = '';
+  if (pinned && pinRec.station) {
+    status = '<p class="sub">Pinned: ' + escHtml(pinRec.station.officialName || '?') +
+      ' — ~' + (pinRec.distanceKm || 0) + ' km from "' + escHtml(place) + '"</p>';
+  } else if (pinned && pinRec.error) {
+    status = '<p class="sub" style="color:#c00">' + escHtml(pinRec.error) + '</p>';
+  }
+  var rangeInputs = [7, 15, 30, 45].map(function (d) {
+    return '<label><input type="radio" name="range" value="' + d + '"' +
+      (range === d ? ' checked' : '') + '>' + d + ' days</label>';
+  }).join('');
   var s = read();
   var html =
     '<!DOCTYPE html><html><head><meta name="viewport" ' +
@@ -77,12 +98,21 @@ function pageUrl() {
     '<label><input type="radio" name="midtide" value="1"' + (s.midtide === 1 ? ' checked' : '') + '>Show</label>' +
     '<label><input type="radio" name="midtide" value="0"' + (s.midtide === 0 ? ' checked' : '') + '>Hide</label>' +
     '</fieldset>' +
+    '<fieldset><legend>Tide location</legend>' + status +
+    '<label><input type="radio" name="locationMode" value="auto"' + (pinned ? '' : ' checked') + '>Use my location</label>' +
+    '<label><input type="radio" name="locationMode" value="pinned"' + (pinned ? ' checked' : '') + '>Pin a place for offline</label>' +
+    '<label>Place: <input type="text" name="place" value="' + escHtml(place) + '" placeholder="e.g. Tofino BC"></label>' +
+    rangeInputs +
+    '</fieldset>' +
     '<button id="save">Save</button>' +
     '<script>' +
     'function pick(n){var e=document.getElementsByName(n);' +
     'for(var i=0;i<e.length;i++){if(e[i].checked){return parseInt(e[i].value,10);}}return 0;}' +
     'document.getElementById("save").addEventListener("click",function(){' +
-    'var out={units:pick("units"),clock:pick("clock"),midtide:pick("midtide")};' +
+    'var out={units:pick("units"),clock:pick("clock"),midtide:pick("midtide"),' +
+    'locationMode:(function(){var e=document.getElementsByName("locationMode");' +
+    'for(var i=0;i<e.length;i++){if(e[i].checked)return e[i].value;}return "auto";})(),' +
+    'place:document.getElementsByName("place")[0].value,range:pick("range")};' +
     'document.location="pebblejs://close#"+encodeURIComponent(JSON.stringify(out));});' +
     '</script></body></html>';
   return 'data:text/html;charset=utf-8,' + encodeURIComponent(html);

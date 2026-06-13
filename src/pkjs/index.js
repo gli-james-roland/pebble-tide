@@ -9,6 +9,8 @@ var providers = require('./providers');
 var catalog = require('./catalog');
 var orchestrate = require('./orchestrate');
 var STATIONS = require('./stations');
+var pin = require('./pin');
+var geocode = require('./geocode');
 
 var CATALOG_PROVIDERS = ['dfo', 'noaa', 'bom'];
 
@@ -137,10 +139,10 @@ function sunDaysForWindow(from, to, station) {
   return days;
 }
 
-function fetchWeek(station, distanceKm) {
+function fetchRange(station, distanceKm, forwardDays) {
   var now = new Date();
   var from = new Date(now.getTime() - BACK_DAYS * 24 * 60 * 60 * 1000);
-  var to = new Date(now.getTime() + WEEK_DAYS * 24 * 60 * 60 * 1000);
+  var to = new Date(now.getTime() + forwardDays * 24 * 60 * 60 * 1000);
   var adapter = providers.forStation(station);
   var hiloUrl = adapter.hiloUrl(station, from, to);
   var sunDays = sunDaysForWindow(from, to, station);
@@ -167,10 +169,11 @@ function fetchWeek(station, distanceKm) {
   }
 }
 
-function maybeRefresh(station, distanceKm) {
+function maybeRefresh(station, distanceKm, forwardDays) {
+  var days = forwardDays || WEEK_DAYS;
   if (refresh.shouldRefresh(todayStr(), station.id, blob.BLOB_VERSION, readJson(META_KEY))) {
-    console.log('Refreshing week for ' + station.officialName);
-    fetchWeek(station, distanceKm);
+    console.log('Refreshing ' + days + ' days for ' + station.officialName);
+    fetchRange(station, distanceKm, days);
   } else {
     console.log('Cache is fresh for ' + station.officialName + '; not fetching');
   }
@@ -283,7 +286,17 @@ function onPositionError(err) {
 
 Pebble.addEventListener('ready', function () {
   console.log('pebble_tides pkjs ready');
-  sendConfig(); // push saved display prefs (or defaults) so the watch renders correctly
+  sendConfig();
+
+  var p = pin.read(localStorage);
+  if (p.mode === 'pinned' && p.station) {
+    // Pinned Mode (ADR 0004/0005): no geolocation. Refresh the pinned station's
+    // range when online; fetchRange keeps the stored snapshot on failure (offline).
+    console.log('Pinned to ' + p.station.officialName + ' (' + p.rangeDays + 'd)');
+    maybeRefresh(p.station, p.distanceKm || 0, p.rangeDays);
+    return;
+  }
+
   var cache = catalog.readCache(localStorage);
   if (!orchestrate.hasAnyCache(cache)) {
     // Cold first run: await catalog fetch(es) so an out-of-seed-region user gets
@@ -298,14 +311,59 @@ Pebble.addEventListener('ready', function () {
 });
 
 Pebble.addEventListener('showConfiguration', function () {
-  Pebble.openURL(config.pageUrl());
+  Pebble.openURL(config.pageUrl(pin.read(localStorage)));
 });
 
 // On save, persist the chosen settings to localStorage then re-send them on the
 // config channel so the watch re-renders without refetching. No response = user
 // cancelled, leave settings unchanged.
 Pebble.addEventListener('webviewclosed', function (e) {
-  if (!e || !e.response) { return; }
+  if (!e || !e.response) { return; }     // user cancelled
   config.save(e.response);
   sendConfig();
+
+  var loc = pin.parseResponse(e.response);
+  if (!loc) { return; }
+
+  var cur = pin.read(localStorage);
+
+  if (loc.mode === 'auto') {
+    // Only act on a real transition out of Pinned Mode. A display-only save
+    // (units/clock) while already in Auto must not trigger an extra geolocation.
+    if (cur.mode === 'pinned') {
+      pin.clear(localStorage);
+      locate();                          // resume Auto immediately
+    }
+    return;
+  }
+
+  // Pinned. Skip the geocode + full re-download when the location is unchanged
+  // (e.g. the user only flipped units/clock): same place, same range, already
+  // resolved to a station.
+  if (cur.mode === 'pinned' && cur.station &&
+      cur.place === loc.place && cur.rangeDays === loc.rangeDays) {
+    return;
+  }
+  if (!loc.place) {
+    pin.write(localStorage, { mode: 'pinned', place: '', station: null, rangeDays: loc.rangeDays, distanceKm: 0, error: 'No place entered' });
+    return;
+  }
+  // Pinned: geocode the place, pick the nearest Usable Station, download the range.
+  geocode.geocode(loc.place, function (coords) {
+    if (!coords) {
+      pin.write(localStorage, { mode: 'pinned', place: loc.place, station: null, rangeDays: loc.rangeDays, distanceKm: 0, error: 'Couldn\'t find "' + loc.place + '"' });
+      return;
+    }
+    var result = selectStation(coords.lat, coords.lon);
+    if (!result) {
+      pin.write(localStorage, { mode: 'pinned', place: loc.place, station: null, rangeDays: loc.rangeDays, distanceKm: 0, error: 'No station found near "' + loc.place + '"' });
+      return;
+    }
+    var st = result.station;
+    pin.write(localStorage, {
+      mode: 'pinned', place: loc.place, rangeDays: loc.rangeDays, distanceKm: result.distanceKm, error: null,
+      station: { id: st.id, officialName: st.officialName, latitude: st.latitude, longitude: st.longitude, operating: st.operating, provider: st.provider, tz: st.tz, region: st.region },
+    });
+    fetchRange(st, result.distanceKm, loc.rangeDays);
+  });
 });
