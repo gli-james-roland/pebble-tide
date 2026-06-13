@@ -7,6 +7,7 @@ notes; `publish.sh` posts the matching version's section to the appstore.
 Write the next release's notes as bullets under `## [Unreleased]`.
 
 ## [Unreleased]
+- Pin a station for a place you're travelling to and download up to 45 days of tides for offline use. Pick the place and a 7/15/30/45-day range from the phone; clear the pin to return to using your location.
 
 ## [1.0.3] - 2026-06-12
 - Australia and the South Pacific tide coverage via the Bureau of Meteorology (BOM).
