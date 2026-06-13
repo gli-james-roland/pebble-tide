@@ -344,6 +344,30 @@ function downloadRegion(rec, onDone) {
   next();
 }
 
+// Background window-extend (#61). On an online launch, if the region's window
+// has aged past the staleness threshold, re-download the whole region to push
+// the 45-day horizon forward. Fire-and-forget: it never blocks serving the
+// current nearest cached station. fetchedAt is only bumped after a round
+// finishes, so an offline launch (every fetch fails, downloadStationToCache
+// keeps the old cache) leaves the region record untouched.
+function maybeRefreshRegion(rec) {
+  // "Only when online": skip when the browser explicitly reports offline.
+  // When navigator.onLine is unavailable or true, attempt -- a real offline
+  // launch's fetches just fail and the cache is preserved.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return;
+  }
+  if (!refresh.regionNeedsRefresh(rec.fetchedAt, todayStr(), rec.rangeDays)) {
+    return;
+  }
+  console.log('Region window aged; background re-download to extend');
+  downloadRegion(rec, function () {
+    rec.fetchedAt = todayStr();
+    region.write(localStorage, rec);
+    console.log('Region window extended; fetchedAt=' + rec.fetchedAt);
+  });
+}
+
 // Launch path for a pinned region: GPS -> nearest cached station -> send to the
 // watch. Cache-only, no network. No fix -> serve nearest cached to the region
 // center (fuller fallback is #63).
@@ -374,10 +398,11 @@ Pebble.addEventListener('ready', function () {
 
   var rec = region.read(localStorage);
   if (rec.mode === 'region') {
-    // Region Mode (ADR 0006): serve the nearest cached station, no network.
-    // Auto-refresh of the aged window is issue #61.
+    // Region Mode (ADR 0006): serve the nearest cached station from cache, then
+    // extend the aged window in the background when online (#61).
     console.log('Region pinned: ' + ((rec.stations || []).length) + ' stations');
     serveRegion(rec);
+    maybeRefreshRegion(rec);  // #61: extend the aged window in the background
     return;
   }
 
