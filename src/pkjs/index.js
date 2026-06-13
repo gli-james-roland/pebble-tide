@@ -15,8 +15,11 @@ var regionserve = require('./regionserve');
 var blobcache = require('./blobcache');
 var geocode = require('./geocode');
 
-// #58 tracer: fixed region station cap. The byte-budget-driven cap is #59.
-var REGION_CAP = 400;
+// Region storage bounds (#58/#59, ADR 0007). The station cap clips selection;
+// the byte budget stops the download loop once cumulative blob bytes would
+// exceed it. Both live in regionselect so selection and download agree.
+var REGION_CAP = regionselect.MAX_STATIONS;
+var REGION_BYTE_BUDGET = regionselect.REGION_BYTE_BUDGET;
 
 var CATALOG_PROVIDERS = ['dfo', 'noaa', 'bom'];
 
@@ -299,7 +302,11 @@ function onPositionError(err) {
 // distanceKm is baked as 0: the served station is the nearest by construction,
 // so the far-distance flag stays off. cb(true) on cache write, cb(false) on a
 // failed fetch or a quota write failure.
-function downloadStationToCache(station, rangeDays, cb) {
+// cb(good, bytes, overBudget). bytes is the base64 length the blob would (or
+// did) occupy in the cache; overBudget is true when `gate` rejected the write
+// because caching it would exceed the region byte budget (#59). gate(bytes) is
+// optional -- when omitted the blob is always written.
+function downloadStationToCache(station, rangeDays, cb, gate) {
   var now = new Date();
   var from = new Date(now.getTime() - BACK_DAYS * 24 * 60 * 60 * 1000);
   var to = new Date(now.getTime() + rangeDays * 24 * 60 * 60 * 1000);
@@ -308,9 +315,12 @@ function downloadStationToCache(station, rangeDays, cb) {
   var sunDays = sunDaysForWindow(from, to, station);
   function handle(e1, raw) {
     var points = providers.pointsFor(station, e1, raw);
-    if (points.length === 0) { cb(false); return; }
+    if (points.length === 0) { cb(false, 0, false); return; }
     var u8 = blob.packWeek(points, station, 0, sunDays);
-    cb(blobcache.setBytes(localStorage, station.id, u8, todayStr(), blob.BLOB_VERSION));
+    var b64 = blobcache.encode(u8);          // encode once: gate, then store it
+    var bytes = b64.length;                   // base64 length = stored size
+    if (gate && !gate(bytes)) { cb(false, bytes, true); return; } // budget stop
+    cb(blobcache.setB64(localStorage, station.id, b64, todayStr(), blob.BLOB_VERSION), bytes, false);
   }
   if (adapter.responseFormat === 'text') {
     fetchRaw(hiloUrl, adapter.requestHeaders || null, handle);
@@ -324,22 +334,54 @@ function regionIds(rec) {
   return (rec && rec.stations ? rec.stations : []).map(function (st) { return st.id; });
 }
 
-// Download every station in the region, one at a time (API-polite). #58 has no
-// progress UI or byte budget (issues #59/#62); it just caches the set.
+// Download the region's stations one at a time (API-polite), nearest-first,
+// enforcing the byte budget (#59). Before each blob is written, withinBudget
+// gates it against the cumulative base64 bytes already cached; the first blob
+// that would push the total over REGION_BYTE_BUDGET stops the loop without
+// being written. A blobcache quota failure (setBytes -> false) stops it too.
+// Either way the region is marked truncated and rec.stations is rewritten to
+// exactly the stations that landed in the cache, so eviction and serving stay
+// consistent (stations beyond the stop are dropped from the record and any of
+// their stale blobs from a prior round are evicted).
 function downloadRegion(rec, onDone) {
   var stations = rec.stations || [];
+  var origIds = regionIds(rec);
+  var cached = [];     // stations actually written, nearest-first
+  var usedBytes = 0;
+  var stopped = false; // budget or quota stop
   var i = 0;
-  var ok = 0;
-  function next() {
-    if (i >= stations.length) {
-      console.log('Region cached ' + ok + '/' + stations.length + ' stations');
-      if (onDone) { onDone(ok); }
-      return;
+  function finish() {
+    // Only a budget/quota stop truncates. A transient per-station fetch failure
+    // is not truncation (matches #58): the record keeps its full station list so
+    // the next refresh round can retry the stations that failed this time.
+    if (stopped) {
+      rec.stations = cached;
+      rec.truncated = true;
+      blobcache.evict(localStorage, origIds, regionIds(rec)); // drop dropped blobs
+      region.write(localStorage, rec);
     }
-    downloadStationToCache(stations[i++], rec.rangeDays, function (good) {
-      if (good) { ok++; }
+    console.log('Region cached ' + cached.length + '/' + stations.length +
+      ' stations (' + usedBytes + ' b64 bytes' + (stopped ? ', truncated' : '') + ')');
+    if (onDone) { onDone(cached.length); }
+  }
+  function next() {
+    if (stopped || i >= stations.length) { finish(); return; }
+    var station = stations[i++];
+    downloadStationToCache(station, rec.rangeDays, function (good, bytes, overBudget) {
+      if (overBudget) {            // budget gate refused the write
+        stopped = true;
+        console.log('Region byte budget reached; stopping at ' + cached.length + ' stations');
+      } else if (good) {
+        usedBytes += bytes;
+        cached.push(station);
+      } else if (bytes > 0) {      // packed but setBytes failed -> quota stop
+        stopped = true;
+        console.log('Region blob write failed (quota); stopping at ' + cached.length + ' stations');
+      }
+      // good === false with bytes === 0 is a transient fetch failure: skip this
+      // station and keep going (mirrors #58 behaviour), not a truncation.
       next();
-    });
+    }, function (bytes) { return regionselect.withinBudget(usedBytes, bytes, REGION_BYTE_BUDGET); });
   }
   next();
 }
@@ -361,7 +403,29 @@ function maybeRefreshRegion(rec) {
     return;
   }
   console.log('Region window aged; background re-download to extend');
+  // Re-select the full intended set from the current catalog union rather than
+  // re-using rec.stations: a prior round may have truncated rec.stations to the
+  // bytes that fit, and feeding that shrunken list back would let the region
+  // only ever shrink. Selection is nearest-first and capped, so we always start
+  // from the closest REGION_CAP stations around the saved center (#59).
+  var cands = catalog.unionStations(catalog.readCache(localStorage), STATIONS);
+  var c = rec.center;
+  if (c) {
+    var sel = regionselect.selectRegion(cands, c.lat, c.lon, rec.radiusKm, REGION_CAP);
+    if (sel.stations.length) {
+      rec.stations = sel.stations;
+      rec.truncated = sel.truncated; // reset; downloadRegion re-sets on a byte stop
+    }
+  }
   downloadRegion(rec, function () {
+    // downloadRegion already persisted rec (with the cached subset + truncated)
+    // if a byte/quota stop fired. Bump the window only when the full intended
+    // set landed -- a truncated round leaves fetchedAt stale so the next aged
+    // launch retries the full set (it may fit once storage frees up).
+    if (rec.truncated) {
+      console.log('Region round truncated; leaving fetchedAt stale to retry full set');
+      return;
+    }
     rec.fetchedAt = todayStr();
     region.write(localStorage, rec);
     console.log('Region window extended; fetchedAt=' + rec.fetchedAt);

@@ -10,6 +10,19 @@
 
 var geo = require('./geo');
 
+// #59 storage bounds (ADR 0007). Selection caps by station count; the download
+// loop enforces the running byte total because real blob sizes are only known
+// after packing. Both are exported so index.js shares one source of truth.
+var MAX_STATIONS = 400;          // hard station cap (~1.8 MB at ~4.5 KB/blob)
+var REGION_BYTE_BUDGET = 2500000; // ~2.5 MB of base64 blob bytes
+
+// Pure stop decision for the download loop: true means caching a station of
+// addBytes keeps the cumulative total (usedBytes) at or under the budget.
+// Measured in base64 length, which is what blobcache actually stores.
+function withinBudget(usedBytes, addBytes, budget) {
+  return usedBytes + addBytes <= budget;
+}
+
 function selectRegion(candidates, lat, lon, radiusKm, cap) {
   var within = [];
   for (var i = 0; i < candidates.length; i++) {
@@ -26,4 +39,9 @@ function selectRegion(candidates, lat, lon, radiusKm, cap) {
   return { stations: kept, truncated: truncated };
 }
 
-module.exports = { selectRegion: selectRegion };
+module.exports = {
+  selectRegion: selectRegion,
+  withinBudget: withinBudget,
+  MAX_STATIONS: MAX_STATIONS,
+  REGION_BYTE_BUDGET: REGION_BYTE_BUDGET,
+};

@@ -60,10 +60,18 @@ function decode(str) {
   return u8;
 }
 
+// Store an already-encoded blob. Returns the stored base64 length (truthy) on
+// success, 0 on a quota/unavailable failure. The #59 region loop encodes a blob
+// once, gates its length against the budget, then stores the same string here --
+// no second encode. 0 keeps the historical falsy-on-failure contract.
+function setB64(storage, id, b64, date, version) {
+  var rec = { date: date, version: version, b64: b64 };
+  try { storage.setItem(keyFor(id), JSON.stringify(rec)); return b64.length; }
+  catch (e) { return 0; } // quota or unavailable; caller decides what to do
+}
+
 function setBytes(storage, id, u8, date, version) {
-  var rec = { date: date, version: version, b64: encode(u8) };
-  try { storage.setItem(keyFor(id), JSON.stringify(rec)); return true; }
-  catch (e) { return false; } // quota or unavailable; caller decides what to do
+  return setB64(storage, id, encode(u8), date, version);
 }
 
 function getBytes(storage, id) {
@@ -103,6 +111,7 @@ module.exports = {
   encode: encode,
   decode: decode,
   setBytes: setBytes,
+  setB64: setB64,
   getBytes: getBytes,
   clear: clear,
   evict: evict,
