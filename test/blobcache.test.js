@@ -50,3 +50,32 @@ test('setBytes stores under the tideBlob:<id> key', () => {
   blobcache.setBytes(s, 'ABC', new Uint8Array([9]), '2026-06-13', 3);
   assert.deepStrictEqual(s._keys(), ['tideBlob:ABC']);
 });
+
+// #59: setBytes returns the stored base64 length so the region download loop
+// can account bytes against the budget without re-encoding the blob (it is
+// truthy on success, falsy 0 on a quota failure, so the bool contract holds).
+test('setBytes returns the stored base64 length on success', () => {
+  const s = fakeStorage();
+  const u8 = new Uint8Array([1, 2, 3, 4, 5, 6]);
+  assert.strictEqual(blobcache.setBytes(s, 'ABC', u8, '2026-06-13', 3), blobcache.encode(u8).length);
+});
+
+test('setBytes returns 0 when the write fails (quota)', () => {
+  const full = { getItem: () => null, setItem: () => { throw new Error('quota'); }, removeItem: () => {} };
+  assert.strictEqual(blobcache.setBytes(full, 'ABC', new Uint8Array([1]), '2026-06-13', 3), 0);
+});
+
+// #59: setB64 stores an already-encoded blob so the region loop encodes each
+// station once (gate the budget on the length, then store the same string).
+test('setB64 stores a pre-encoded blob that getBytes round-trips', () => {
+  const s = fakeStorage();
+  const u8 = new Uint8Array([7, 8, 9, 10]);
+  const b64 = blobcache.encode(u8);
+  assert.strictEqual(blobcache.setB64(s, 'STN1', b64, '2026-06-13', 3), b64.length);
+  assert.deepStrictEqual(Array.from(blobcache.getBytes(s, 'STN1').u8), Array.from(u8));
+});
+
+test('setB64 returns 0 when the write fails (quota)', () => {
+  const full = { getItem: () => null, setItem: () => { throw new Error('quota'); }, removeItem: () => {} };
+  assert.strictEqual(blobcache.setB64(full, 'ABC', 'AAAA', '2026-06-13', 3), 0);
+});

@@ -34,3 +34,25 @@ test('selectRegion returns an empty, non-truncated set when nothing is in range'
   assert.deepStrictEqual(r.stations, []);
   assert.strictEqual(r.truncated, false);
 });
+
+// #59 byte budget. Selection caps by count; the running byte total is enforced
+// in the download loop because real blob sizes are only known after packing.
+// withinBudget(usedBytes, addBytes, budget) is the pure stop decision: true
+// means caching this station keeps the total at or under the budget.
+
+test('withinBudget allows a station that fits exactly at the budget', () => {
+  assert.strictEqual(regionselect.withinBudget(2000, 500, 2500), true);
+});
+
+test('withinBudget rejects a station that would exceed the budget', () => {
+  assert.strictEqual(regionselect.withinBudget(2000, 501, 2500), false);
+});
+
+test('withinBudget allows the first station when nothing is cached yet', () => {
+  assert.strictEqual(regionselect.withinBudget(0, 4500, 2500000), true);
+});
+
+test('REGION_BYTE_BUDGET defaults to ~2.5 MB and MAX_STATIONS to 400', () => {
+  assert.strictEqual(regionselect.REGION_BYTE_BUDGET, 2500000);
+  assert.strictEqual(regionselect.MAX_STATIONS, 400);
+});
