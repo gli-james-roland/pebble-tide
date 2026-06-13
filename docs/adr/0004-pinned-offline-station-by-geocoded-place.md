@@ -1,6 +1,6 @@
 # Pinned offline station selected by a geocoded place name
 
-Status: accepted
+Status: superseded by ADR 0006
 
 ## Decision
 
