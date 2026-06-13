@@ -46,12 +46,13 @@ function save(response) {
 }
 
 // Build the configuration page as a data: URI. Current settings are inlined so
-// the controls open pre-selected. pinRec (optional) is the current pin record
-// from pin.js: { mode, place, rangeDays, distanceKm, station, error }.
-function pageUrl(pinRec) {
-  var pinned = pinRec && pinRec.mode === 'pinned';
-  var place = (pinRec && pinRec.place) || '';
-  var range = (pinRec && pinRec.rangeDays) || 15;
+// the controls open pre-selected. rec (optional) is the current region record
+// from region.js: { mode, place, radiusKm, rangeDays, stations, truncated, error }.
+function pageUrl(rec) {
+  var isRegion = rec && rec.mode === 'region';
+  var place = (rec && rec.place) || '';
+  var range = (rec && rec.rangeDays) || 45;
+  var radius = (rec && rec.radiusKm) || 75;
   // Escape user/station-derived text before inlining into the page HTML so a
   // '<', '&', or '"' in a place or station name can't break rendering or inject.
   function escHtml(v) {
@@ -59,15 +60,20 @@ function pageUrl(pinRec) {
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
   var status = '';
-  if (pinned && pinRec.station) {
-    status = '<p class="sub">Pinned: ' + escHtml(pinRec.station.officialName || '?') +
-      ' — ~' + (pinRec.distanceKm || 0) + ' km from "' + escHtml(place) + '"</p>';
-  } else if (pinned && pinRec.error) {
-    status = '<p class="sub" style="color:#c00">' + escHtml(pinRec.error) + '</p>';
+  if (isRegion && rec.error) {
+    status = '<p class="sub" style="color:#c00">' + escHtml(rec.error) + '</p>';
+  } else if (isRegion && rec.stations && rec.stations.length) {
+    status = '<p class="sub">Cached ' + rec.stations.length + ' station' +
+      (rec.stations.length === 1 ? '' : 's') + ' near "' + escHtml(place) + '"' +
+      (rec.truncated ? ' (capped)' : '') + '</p>';
   }
   var rangeInputs = [7, 15, 30, 45].map(function (d) {
     return '<label><input type="radio" name="range" value="' + d + '"' +
       (range === d ? ' checked' : '') + '>' + d + ' days</label>';
+  }).join('');
+  var radiusInputs = [25, 75, 150, 300].map(function (d) {
+    return '<label><input type="radio" name="radius" value="' + d + '"' +
+      (radius === d ? ' checked' : '') + '>' + d + ' km</label>';
   }).join('');
   var s = read();
   var html =
@@ -99,10 +105,11 @@ function pageUrl(pinRec) {
     '<label><input type="radio" name="midtide" value="0"' + (s.midtide === 0 ? ' checked' : '') + '>Hide</label>' +
     '</fieldset>' +
     '<fieldset><legend>Tide location</legend>' + status +
-    '<label><input type="radio" name="locationMode" value="auto"' + (pinned ? '' : ' checked') + '>Use my location</label>' +
-    '<label><input type="radio" name="locationMode" value="pinned"' + (pinned ? ' checked' : '') + '>Pin a place for offline</label>' +
+    '<label><input type="radio" name="locationMode" value="auto"' + (isRegion ? '' : ' checked') + '>Use my location</label>' +
+    '<label><input type="radio" name="locationMode" value="region"' + (isRegion ? ' checked' : '') + '>Pin a region for offline</label>' +
     '<label>Place: <input type="text" name="place" value="' + escHtml(place) + '" placeholder="e.g. Tofino BC"></label>' +
-    rangeInputs +
+    '<p class="sub">Radius</p>' + radiusInputs +
+    '<p class="sub">Offline days</p>' + rangeInputs +
     '</fieldset>' +
     '<button id="save">Save</button>' +
     '<script>' +
@@ -112,7 +119,7 @@ function pageUrl(pinRec) {
     'var out={units:pick("units"),clock:pick("clock"),midtide:pick("midtide"),' +
     'locationMode:(function(){var e=document.getElementsByName("locationMode");' +
     'for(var i=0;i<e.length;i++){if(e[i].checked)return e[i].value;}return "auto";})(),' +
-    'place:document.getElementsByName("place")[0].value,range:pick("range")};' +
+    'place:document.getElementsByName("place")[0].value,range:pick("range"),radius:pick("radius")};' +
     'document.location="pebblejs://close#"+encodeURIComponent(JSON.stringify(out));});' +
     '</script></body></html>';
   return 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
