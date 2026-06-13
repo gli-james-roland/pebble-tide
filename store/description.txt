@@ -1,4 +1,4 @@
-Pebble Tides shows the day's tides at a glance: a graph of the high and low tides with their exact times and heights, the current water level, whether the tide is rising or falling, and optional mid-tide times. It uses your location to pick the nearest tide station and keeps working offline by caching a week of predictions.
+Pebble Tides shows the day's tides at a glance: a graph of the high and low tides with their exact times and heights, the current water level, whether the tide is rising or falling, and optional mid-tide times. It uses your location to pick the nearest tide station and keeps working offline by caching a week of predictions — or pin a destination ahead of time to cache up to 45 days.
 
 Features:
 - Uses your location to pick the nearest tide station
@@ -9,7 +9,13 @@ Features:
 - Step through tides with the buttons; long-press to jump a day, Select to jump to now
 - Feet or metres, 12 or 24 hour clock, all set from the phone
 - Caches a week of predictions and refreshes once a day; works with the phone out of range
+- Pin a destination ahead of time and download up to 45 days of tides for offline use
 
-Coverage: Pebble Tides covers Canada (Fisheries and Oceans Canada, DFO), the United States (NOAA), and Australia and the South Pacific (Bureau of Meteorology, BOM). It picks the station nearest you. If you'd like another region added, let me know and I'm happy to look at adding it.
+Coverage: Pebble Tides covers 
+- Canada (Fisheries and Oceans Canada, DFO)
+- United States (NOAA) 
+- Australia and the South Pacific (Bureau of Meteorology, BOM)
+
+It picks the station nearest you, or the one nearest a place you pin for an upcoming trip. If you'd like another region added, let me know and I'm happy to look at adding it.
 
 Controls: Up/Down step tides, long-press Up/Down jump a day, Select jumps to now, Back exits.
