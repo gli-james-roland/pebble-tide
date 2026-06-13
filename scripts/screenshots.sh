@@ -19,7 +19,9 @@
 #   PEBBLE_SHOT_SETTLE       seconds to let the BC/DFO path render (default: 18)
 #   PEBBLE_SHOT_SETTLE_NOAA  seconds for the slower NOAA cold start (default: 40)
 #   PEBBLE_SHOT_SETTLE_BOM   seconds for the slower BOM cold start (default: 40)
-#   PEBBLE_SHOT_STEP_SETTLE  seconds between tide steps for the GIF (default: 2)
+#   PEBBLE_SHOT_PAN_MS       slowed curve-pan length (ms) for GIF capture (default: 4000)
+#   PEBBLE_SHOT_GIF_DELAY    GIF delay per moving frame, centiseconds (default: 6)
+#   PEBBLE_SHOT_GIF_HOLD     GIF hold on each settled tide, centiseconds (default: 120)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -27,8 +29,10 @@ PLATFORMS="${PEBBLE_SHOT_PLATFORMS:-gabbro chalk emery diorite}"
 SETTLE="${PEBBLE_SHOT_SETTLE:-18}"
 SETTLE_NOAA="${PEBBLE_SHOT_SETTLE_NOAA:-40}"
 SETTLE_BOM="${PEBBLE_SHOT_SETTLE_BOM:-40}"
-STEP_SETTLE="${PEBBLE_SHOT_STEP_SETTLE:-2}"
-GIF_STEPS=3                          # tides to roll forward in the animation
+PAN_MS="${PEBBLE_SHOT_PAN_MS:-4000}"     # slowed curve-pan length (ms) for capture
+GIF_DELAY="${PEBBLE_SHOT_GIF_DELAY:-6}"  # GIF delay per moving frame (centiseconds)
+GIF_HOLD="${PEBBLE_SHOT_GIF_HOLD:-120}"  # GIF hold on each settled tide (centiseconds)
+GIF_STEPS=4                            # tides to roll forward in the animation
 SEATTLE_LAT=47.602638
 SEATTLE_LON=-122.339432              # NOAA station 9447130
 SYDNEY_LAT=-33.8543
@@ -91,27 +95,51 @@ shot() {
   mv -f "$(ls -t pebble_screenshot_*.png | head -1)" "$out"
 }
 
-pebble build
+# Slow the curve-pan (see wscript) so the GIF capture below can sample it;
+# static shots are unaffected because the pan only runs on a button press.
+PEBBLE_TIDES_PAN_MS="$PAN_MS" pebble build
 mkdir -p screenshots
 
 # --- Default location (BC / DFO): static shot + rolling-tides GIF ----------
+# The GIF captures the curve-pan animation itself, not just the settled tides.
+# The pan was slowed to PAN_MS at build time; here we fire screenshots as fast
+# as the emulator allows across each pan window, then replay them quickly.
+pan_secs=$(( (PAN_MS + 999) / 1000 ))
 for plat in $PLATFORMS; do
   echo "Capturing $plat (BC + animation) ..."
   launch_fresh "$plat" "$SETTLE"
   shot "$plat" "screenshots/${plat}.png"
   echo "  -> screenshots/${plat}.png"
 
-  # Reuse the running emulator: shoot now, then step forward one tide at a time.
+  # Frame 0 is the settled starting tide. For each step, press DOWN and grab
+  # frames across the whole pan window (the tail frames land on the next
+  # settled tide). Indices that land settled get a longer hold in the GIF.
   frames="$(mktemp -d)"
-  cp "screenshots/${plat}.png" "$frames/frame0.png"
-  for i in $(seq 1 "$GIF_STEPS"); do
+  idx=0
+  cp "screenshots/${plat}.png" "$(printf '%s/f%04d.png' "$frames" "$idx")"
+  settled="$idx"
+  for _ in $(seq 1 "$GIF_STEPS"); do
     pebble emu-button --emulator "$plat" click down >/dev/null 2>&1
-    sleep "$STEP_SETTLE"
-    shot "$plat" "$frames/frame${i}.png"
+    deadline=$(( SECONDS + pan_secs + 1 ))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+      idx=$((idx + 1))
+      shot "$plat" "$(printf '%s/f%04d.png' "$frames" "$idx")"
+    done
+    settled="$settled $idx"
   done
-  magick -delay 120 -loop 0 "$frames"/frame*.png "screenshots/${plat}-animated.gif"
+
+  # Short delay on moving frames, a longer hold on each settled tide.
+  args=()
+  for f in "$frames"/f*.png; do
+    n=$(( 10#$(basename "$f" .png | tr -dc '0-9') ))
+    case " $settled " in
+      *" $n "*) args+=(-delay "$GIF_HOLD" "$f") ;;
+      *)        args+=(-delay "$GIF_DELAY" "$f") ;;
+    esac
+  done
+  magick -loop 0 "${args[@]}" -layers optimize "screenshots/${plat}-animated.gif"
   rm -rf "$frames"
-  echo "  -> screenshots/${plat}-animated.gif (now + $GIF_STEPS tides)"
+  echo "  -> screenshots/${plat}-animated.gif (now + $GIF_STEPS tides, pan captured)"
 done
 
 # --- Seattle (NOAA): static shot, geolocation forced ------------------------

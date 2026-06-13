@@ -29,10 +29,16 @@ def build(ctx):
     build_worker = os.path.exists('worker_src')
     binaries = []
 
+    # Let the screenshot tooling slow the curve-pan so its frames can be
+    # sampled: PEBBLE_TIDES_PAN_MS=4000 pebble build -> longer pan animation.
+    pan_ms = os.environ.get('PEBBLE_TIDES_PAN_MS')
+
     cached_env = ctx.env
     for platform in ctx.env.TARGET_PLATFORMS:
         ctx.env = ctx.all_envs[platform]
         ctx.set_group(ctx.env.PLATFORM_NAME)
+        if pan_ms:
+            ctx.env.append_value('DEFINES', 'PAN_ANIM_DURATION_MS=%d' % int(pan_ms))
         app_elf = '{}/pebble-app.elf'.format(ctx.env.BUILD_DIR)
         ctx.pbl_build(source=ctx.path.ant_glob('src/c/**/*.c'), target=app_elf, bin_type='app')
 
