@@ -14,13 +14,13 @@ A Pinned offline download holds up to **45 Days** of predictions on the watch, u
 
 Total persisted (blob + len + 3 config ints) ≈ 3,088 B, under the documented **4 KB per-app** persistent-storage limit. The blob record **format is unchanged** — only buffer/cap sizes grow — so no `BLOB_VERSION` bump and a blob written by the old version still parses.
 
-The Offline Range applies only in **Pinned Mode**. **Auto Mode** keeps its short ~8-Day window, refreshed daily.
+The Offline Range applies only to a **pinned region** (ADR 0006) — each cached Station in the region holds the chosen range. **Auto Mode** keeps its short ~8-Day window, refreshed daily.
 
 ## Context
 
 "Download a bunch of data" is bounded by the watch, not the APIs. Pebble allots each app 4 KB of persistent storage (256 B per field). The blob is the dominant consumer, chunked across persist fields. Per day it costs ~36 B (≈4 Extrema × 7 B + 8 B sun), against ~71 B fixed header plus a handful of config ints — a theoretical ceiling near 95 Days, so 45 sits comfortably inside with room to grow later.
 
-Auto Mode is excluded deliberately: it runs online and refetches daily, so pulling 45 Days on every wake would burn bandwidth and battery for data replaced the next day. The long horizon exists only for the deliberate go-offline case (Pinned Mode, see ADR 0004).
+Auto Mode is excluded deliberately: it runs online and refetches daily, so pulling 45 Days on every wake would burn bandwidth and battery for data replaced the next day. The long horizon exists only for the deliberate go-offline case (a pinned region, see ADR 0006).
 
 ## Considered options
 
