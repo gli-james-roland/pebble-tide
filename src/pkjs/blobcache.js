@@ -81,6 +81,22 @@ function clear(storage, id) {
   try { storage.removeItem(keyFor(id)); } catch (e) { /* non-fatal */ }
 }
 
+// Drop blobs orphaned by a region change. `oldIds` is the previous region's
+// authoritative station id list (region record's stations[]); `keepIds` is the
+// new set. Every old id not in keepIds is removed. We diff explicit id lists
+// rather than iterating localStorage keys: under pypkjs key iteration is O(n)
+// and unstably ordered (ADR 0006). Returns the number of blobs removed.
+function evict(storage, oldIds, keepIds) {
+  var old = oldIds || [];
+  var keep = {};
+  (keepIds || []).forEach(function (id) { keep[id] = true; });
+  var removed = 0;
+  old.forEach(function (id) {
+    if (!keep[id]) { clear(storage, id); removed++; }
+  });
+  return removed;
+}
+
 module.exports = {
   KEY_PREFIX: KEY_PREFIX,
   keyFor: keyFor,
@@ -89,4 +105,5 @@ module.exports = {
   setBytes: setBytes,
   getBytes: getBytes,
   clear: clear,
+  evict: evict,
 };

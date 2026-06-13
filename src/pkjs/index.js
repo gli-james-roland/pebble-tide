@@ -319,6 +319,11 @@ function downloadStationToCache(station, rangeDays, cb) {
   }
 }
 
+// Station ids in a region record (authoritative list for blob eviction).
+function regionIds(rec) {
+  return (rec && rec.stations ? rec.stations : []).map(function (st) { return st.id; });
+}
+
 // Download every station in the region, one at a time (API-polite). #58 has no
 // progress UI or byte budget (issues #59/#62); it just caches the set.
 function downloadRegion(rec, onDone) {
@@ -410,6 +415,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
     // Only act on a real transition out of Region Mode. A display-only save
     // (units/clock) while already in Auto must not trigger an extra geolocation.
     if (cur.mode === 'region') {
+      blobcache.evict(localStorage, regionIds(cur), []); // drop all region blobs
       region.clear(localStorage);
       locate();                          // resume Auto immediately
     }
@@ -445,6 +451,7 @@ Pebble.addEventListener('webviewclosed', function (e) {
       radiusKm: loc.radiusKm, cap: REGION_CAP, stations: sel.stations,
       rangeDays: loc.rangeDays, fetchedAt: todayStr(), truncated: sel.truncated, error: null,
     };
+    blobcache.evict(localStorage, regionIds(cur), regionIds(rec)); // drop orphaned blobs
     region.write(localStorage, rec);
     downloadRegion(rec, null);
   });
