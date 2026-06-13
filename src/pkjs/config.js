@@ -63,9 +63,12 @@ function pageUrl(rec) {
   if (isRegion && rec.error) {
     status = '<p class="sub" style="color:#c00">' + escHtml(rec.error) + '</p>';
   } else if (isRegion && rec.stations && rec.stations.length) {
+    var cap = (rec && rec.cap) || 0;
     status = '<p class="sub">Cached ' + rec.stations.length + ' station' +
       (rec.stations.length === 1 ? '' : 's') + ' near "' + escHtml(place) + '"' +
-      (rec.truncated ? ' (capped)' : '') + '</p>';
+      ' within ' + radius + ' km' +
+      (rec.truncated ? (cap ? ' (capped at ' + cap + ')' : ' (capped)') : '') +
+      '</p>';
   }
   var rangeInputs = [7, 15, 30, 45].map(function (d) {
     return '<label><input type="radio" name="range" value="' + d + '"' +
@@ -108,8 +111,8 @@ function pageUrl(rec) {
     '<label><input type="radio" name="locationMode" value="auto"' + (isRegion ? '' : ' checked') + '>Use my location</label>' +
     '<label><input type="radio" name="locationMode" value="region"' + (isRegion ? ' checked' : '') + '>Pin a region for offline</label>' +
     '<label>Place: <input type="text" name="place" value="' + escHtml(place) + '" placeholder="e.g. Tofino BC"></label>' +
-    '<p class="sub">Radius</p>' + radiusInputs +
-    '<p class="sub">Offline days</p>' + rangeInputs +
+    '<p class="sub" style="margin:8px 0 0;font-weight:600;color:#222">Search radius</p>' + radiusInputs +
+    '<p class="sub" style="margin:8px 0 0;font-weight:600;color:#222">Offline days</p>' + rangeInputs +
     '</fieldset>' +
     '<button id="save">Save</button>' +
     '<script>' +

@@ -32,6 +32,21 @@ test('pageUrl shows a region error when present', () => {
   assert.ok(html.indexOf("Couldn't find") !== -1);
 });
 
+test('pageUrl labels the radius and offline-days groups as sub-headings', () => {
+  const url = config.pageUrl({ mode: 'region', place: 'Hobart', radiusKm: 75, rangeDays: 45, stations: [{ id: 'a' }] });
+  const html = decodeURIComponent(url.replace('data:text/html;charset=utf-8,', ''));
+  assert.ok(html.indexOf('Search radius') !== -1, 'radius sub-heading');
+  assert.ok(html.indexOf('Offline days') !== -1, 'offline-days sub-heading');
+});
+
+test('pageUrl status reports the radius and cap when capped', () => {
+  const url = config.pageUrl({ mode: 'region', place: 'Seattle', radiusKm: 300, rangeDays: 45, cap: 400, stations: new Array(400).fill({ id: 'a' }), truncated: true });
+  const html = decodeURIComponent(url.replace('data:text/html;charset=utf-8,', ''));
+  assert.ok(html.indexOf('Cached 400 stations') !== -1, 'cached count');
+  assert.ok(html.indexOf('300 km') !== -1, 'radius in status');
+  assert.ok(html.indexOf('capped at 400') !== -1, 'cap surfaced');
+});
+
 test('pageUrl tolerates a missing region record (auto default)', () => {
   const url = config.pageUrl();
   assert.ok(url.indexOf('data:text/html') === 0);
