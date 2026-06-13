@@ -169,10 +169,6 @@ function fetchRange(station, distanceKm, forwardDays) {
   }
 }
 
-function fetchWeek(station, distanceKm) {
-  fetchRange(station, distanceKm, WEEK_DAYS);
-}
-
 function maybeRefresh(station, distanceKm, forwardDays) {
   var days = forwardDays || WEEK_DAYS;
   if (refresh.shouldRefresh(todayStr(), station.id, blob.BLOB_VERSION, readJson(META_KEY))) {
@@ -329,9 +325,23 @@ Pebble.addEventListener('webviewclosed', function (e) {
   var loc = pin.parseResponse(e.response);
   if (!loc) { return; }
 
+  var cur = pin.read(localStorage);
+
   if (loc.mode === 'auto') {
-    pin.clear(localStorage);
-    locate();                            // resume Auto immediately
+    // Only act on a real transition out of Pinned Mode. A display-only save
+    // (units/clock) while already in Auto must not trigger an extra geolocation.
+    if (cur.mode === 'pinned') {
+      pin.clear(localStorage);
+      locate();                          // resume Auto immediately
+    }
+    return;
+  }
+
+  // Pinned. Skip the geocode + full re-download when the location is unchanged
+  // (e.g. the user only flipped units/clock): same place, same range, already
+  // resolved to a station.
+  if (cur.mode === 'pinned' && cur.station &&
+      cur.place === loc.place && cur.rangeDays === loc.rangeDays) {
     return;
   }
   if (!loc.place) {
