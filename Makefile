@@ -1,5 +1,5 @@
 # Convenience wrappers around the Pebble SDK toolchain.
-.PHONY: build install clean test test-live release publish screenshots emu-australia emu-seattle emu-vancouver
+.PHONY: build install clean test test-live release publish screenshots emu-australia emu-seattle emu-vancouver seed-region
 
 build:        ## build the .pbw for all platforms
 	pebble build
@@ -33,3 +33,6 @@ emu-seattle:  ## run the gabbro emulator forced to Seattle (exercises NOAA)
 
 emu-vancouver: ## run the gabbro emulator forced to Vancouver (exercises DFO)
 	./scripts/emulate.sh vancouver
+
+seed-region:  ## seed a pinned region into the emulator for offline testing: make seed-region PLACE="Vancouver BC" RADIUS=25 DAYS=45
+	./scripts/seed-region.sh "$(PLACE)" $(RADIUS) $(DAYS)
