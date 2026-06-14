@@ -21,7 +21,7 @@ var geocode = require('./geocode');
 var REGION_CAP = regionselect.MAX_STATIONS;
 var REGION_BYTE_BUDGET = regionselect.REGION_BYTE_BUDGET;
 
-var CATALOG_PROVIDERS = ['dfo', 'noaa', 'bom'];
+var CATALOG_PROVIDERS = ['dfo', 'noaa', 'bom', 'uk'];
 
 // Issue #9: phone-side display config. Two settings — height units (feet/metres)
 // and clock format (12h/24h) — sync to the watch on their own AppMessage

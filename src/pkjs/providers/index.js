@@ -8,6 +8,7 @@ var REGISTRY = {
   bom: require('./bom'),
   dfo: require('./dfo'),
   noaa: require('./noaa'),
+  uk: require('./uk'),
 };
 
 function forStation(station) {
