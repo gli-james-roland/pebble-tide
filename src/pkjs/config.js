@@ -111,7 +111,7 @@ function pageUrl(rec) {
     '<label><input type="radio" name="locationMode" value="auto"' + (isRegion ? '' : ' checked') + '>Use my location</label>' +
     '<label><input type="radio" name="locationMode" value="region"' + (isRegion ? ' checked' : '') + '>Pin a region for offline</label>' +
     '<label>Place: <input type="text" name="place" value="' + escHtml(place) + '" placeholder="e.g. Tofino BC"></label>' +
-    '<p class="sub" style="margin:8px 0 0;font-weight:600;color:#222">Search radius</p>' + radiusInputs +
+    '<p class="sub" style="margin:8px 0 0;font-weight:600;color:#222">Cache radius</p>' + radiusInputs +
     '<p class="sub" style="margin:8px 0 0;font-weight:600;color:#222">Offline days</p>' + rangeInputs +
     '</fieldset>' +
     '<button id="save">Save</button>' +
