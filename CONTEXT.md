@@ -5,10 +5,10 @@ A Pebble watchapp that shows a day's predicted tides — exact high/low times an
 ## Language
 
 **Provider**:
-A tide-prediction data source the app can pull from. Three exist: **DFO** (Canada, IWLS), **NOAA** (US, CO-OPS), and **BOM** (Australia and the South Pacific, Bureau of Meteorology tide tables). Every Station belongs to exactly one Provider, which determines its `id` namespace, the endpoint used to fetch its predictions, and the response shape that must be normalised before use. BOM serves predictions only to the end of the current calendar year; DFO and NOAA serve years ahead.
+A tide-prediction data source the app can pull from. Four exist: **DFO** (Canada, IWLS), **NOAA** (US, CO-OPS), **BOM** (Australia and the South Pacific, Bureau of Meteorology tide tables), and **UK** (the British Isles — the UK, Ireland, Channel Islands, and Isle of Man — via the UK Hydrographic Office's keyless EasyTide endpoints). Every Station belongs to exactly one Provider, which determines its `id` namespace, the endpoint used to fetch its predictions, and the response shape that must be normalised before use. Providers differ in how far ahead they predict: DFO and NOAA serve years ahead, BOM to the end of the current calendar year, and UK only about 8 Days (current + 7).
 
 **Station**:
-A tide-prediction location with a fixed latitude/longitude, belonging to one Provider, identified by an `id` (used in that Provider's API calls) and shown to the user by its `officialName`. The app picks the one nearest the user's current position, across both Providers.
+A tide-prediction location with a fixed latitude/longitude, belonging to one Provider, identified by an `id` (used in that Provider's API calls) and shown to the user by its `officialName`. The app picks the one nearest the user's current position, across all Providers.
 _Avoid_: Site, location, port.
 
 **Tracked Station**:
@@ -25,10 +25,10 @@ _Avoid_: Saved station, favourite, bookmark.
 The number of days of predictions a Pinned download fetches and stores ahead of time. The user picks one of 7, 15, 30, or 45 Days. Applies only in **Pinned Mode**; **Auto Mode** keeps its short, daily-refreshed window. The maximum (45) is bounded by the watch's persistent-storage ceiling.
 
 **Usable Station**:
-A Station the app is willing to fetch hilo predictions for. The criteria are Provider-specific: a **DFO** Station is Usable when `operating: true` **and** its `timeSeries` advertises the `wlp-hilo` product; a **NOAA** Station is Usable when it appears in the `type=tidepredictions` catalog (both reference and subordinate stations qualify — subordinate stations still return valid predictions). Station selection considers only Usable Stations; others are never fetched.
+A Station the app is willing to fetch hilo predictions for. The criteria are Provider-specific: a **DFO** Station is Usable when `operating: true` **and** its `timeSeries` advertises the `wlp-hilo` product; a **NOAA** Station is Usable when it appears in the `type=tidepredictions` catalog (both reference and subordinate stations qualify — subordinate stations still return valid predictions); a **UK** Station is any British-Isles EasyTide station (every one returns the high/low `tidalEventList`, which is all the app needs). Station selection considers only Usable Stations; others are never fetched.
 
 **Station List**:
-The set of Usable Stations the app selects from. Loaded **dynamically** by fetching each Provider's full catalog (DFO IWLS, NOAA MDAPI), filtering to Usable Stations, and merging into one Provider-tagged list. The merged list is cached on the phone and refreshed on a slow cadence (catalogs change rarely). A small bundled snapshot is the offline / first-run fallback. (Supersedes the original hand-trimmed BC-only subset; coverage is now provider-defined, not hand-curated.)
+The set of Usable Stations the app selects from. Loaded **dynamically** by fetching each Provider's full catalog (DFO IWLS, NOAA MDAPI, BOM tide-prediction sites, UK EasyTide GetStations), filtering to Usable Stations, and merging into one Provider-tagged list. The merged list is cached on the phone and refreshed on a slow cadence (catalogs change rarely). A small bundled snapshot is the offline / first-run fallback. (Supersedes the original hand-trimmed BC-only subset; coverage is now provider-defined, not hand-curated.)
 
 **Tide Prediction**:
 A modelled future water level, as opposed to an observed measurement. This app uses predictions only.
