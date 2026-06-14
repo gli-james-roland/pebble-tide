@@ -15,6 +15,7 @@ Coverage: Pebble Tides covers
 - Canada (Fisheries and Oceans Canada, DFO)
 - United States (NOAA) 
 - Australia and the South Pacific (Bureau of Meteorology, BOM)
+- United Kingdom, Ireland and the Channel Islands (UK Hydrographic Office, EasyTide)
 
 It picks the station nearest you, or the nearest station inside a region you pin for an upcoming trip. If you'd like another region added, let me know and I'm happy to look at adding it.
 

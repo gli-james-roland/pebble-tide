@@ -14,7 +14,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: scripts/emulate.sh <australia|seattle|vancouver|LAT LON> [platform]" >&2
+  echo "usage: scripts/emulate.sh <australia|seattle|vancouver|uk|LAT LON> [platform]" >&2
   exit 2
 }
 
@@ -23,6 +23,7 @@ case "$LOC" in
   australia) LAT=-33.8543; LON=151.2253;  NAME="Sydney, AU (BOM)";       PLAT="${2:-gabbro}" ;;
   seattle)   LAT=47.6026;  LON=-122.3394; NAME="Seattle, US (NOAA)";     PLAT="${2:-gabbro}" ;;
   vancouver) LAT=49.2863;  LON=-123.0997; NAME="Vancouver, CA (DFO)";    PLAT="${2:-gabbro}" ;;
+  uk)        LAT=50.8;     LON=-1.116666; NAME="Portsmouth, UK (UKHO EasyTide)"; PLAT="${2:-gabbro}" ;;
   *) LAT="$1"; LON="${2:-}"; [ -n "$LON" ] || usage; NAME="($LAT, $LON)"; PLAT="${3:-gabbro}" ;;
 esac
 
