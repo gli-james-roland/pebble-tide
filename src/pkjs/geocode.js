@@ -25,19 +25,28 @@ function parseGeocode(json) {
   return { lat: lat, lon: lon };
 }
 
-// geocode(place, cb): cb({lat, lon}) on success, cb(null) on any failure.
+// geocode(place, cb): cb(coords, reason). On success coords is {lat, lon} and
+// reason is null. On failure coords is null and reason says WHY (#63 case 2):
+//   'offline'  -- transport failure (network error, timeout, non-2xx status):
+//                 the lookup never reached a usable answer, so the caller tells
+//                 the user to connect to the internet.
+//   'notfound' -- the server answered but the place has no match (empty result)
+//                 or returned an unusable body.
+// The distinction matters: an offline pin must not read as "Couldn't find".
 function geocode(place, cb) {
   var xhr = new XMLHttpRequest();
   xhr.open('GET', geocodeUrl(place), true);
   xhr.timeout = 15000;
   try { xhr.setRequestHeader('User-Agent', USER_AGENT); } catch (e) { /* forbidden header must not abort */ }
   xhr.onload = function () {
-    if (xhr.status < 200 || xhr.status >= 300) { cb(null); return; }
-    try { cb(parseGeocode(JSON.parse(xhr.responseText))); }
-    catch (e) { cb(null); }
+    if (xhr.status < 200 || xhr.status >= 300) { cb(null, 'offline'); return; }
+    var coords;
+    try { coords = parseGeocode(JSON.parse(xhr.responseText)); }
+    catch (e) { cb(null, 'notfound'); return; } // reachable server, bad body
+    cb(coords, coords ? null : 'notfound');
   };
-  xhr.onerror = function () { cb(null); };
-  xhr.ontimeout = function () { cb(null); };
+  xhr.onerror = function () { cb(null, 'offline'); };
+  xhr.ontimeout = function () { cb(null, 'offline'); };
   xhr.send();
 }
 

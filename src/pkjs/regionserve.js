@@ -33,4 +33,23 @@ function pickServe(region, lat, lon, storage) {
   return { station: best, distanceKm: bestKm, u8: bestBytes };
 }
 
-module.exports = { pickServe: pickServe };
+// Offline-launch fallback (#63, case 3). No GPS fix, so we don't know where the
+// user is. Try the LAST-SERVED station's coords first (most likely still near
+// the user, and it keeps the same station stable across offline relaunches),
+// then the region center, then give up. Cache-only -- each attempt is a
+// pickServe over the phone cache, no network. `last` is the LAST_STATION_KEY
+// record ({ latitude, longitude, ... }) or null.
+function serveNoFix(region, last, storage) {
+  if (last && typeof last.latitude === 'number' && typeof last.longitude === 'number') {
+    var byLast = pickServe(region, last.latitude, last.longitude, storage);
+    if (byLast) { return byLast; }
+  }
+  var c = region && region.center;
+  if (c) {
+    var byCenter = pickServe(region, c.lat, c.lon, storage);
+    if (byCenter) { return byCenter; }
+  }
+  return null;
+}
+
+module.exports = { pickServe: pickServe, serveNoFix: serveNoFix };

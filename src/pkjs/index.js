@@ -433,8 +433,8 @@ function maybeRefreshRegion(rec) {
 }
 
 // Launch path for a pinned region: GPS -> nearest cached station -> send to the
-// watch. Cache-only, no network. No fix -> serve nearest cached to the region
-// center (fuller fallback is #63).
+// watch. Cache-only, no network. No fix -> serveNoFix fallback chain:
+// last-served station first, then region center (#63 case 3).
 function serveRegion(rec) {
   function deliver(served) {
     if (!served) { console.log('Region: no cached station to serve'); return; }
@@ -451,8 +451,9 @@ function serveRegion(rec) {
   navigator.geolocation.getCurrentPosition(function (pos) {
     deliver(regionserve.pickServe(rec, pos.coords.latitude, pos.coords.longitude, localStorage));
   }, function () {
-    var c = rec.center;
-    deliver(c ? regionserve.pickServe(rec, c.lat, c.lon, localStorage) : null);
+    // No GPS fix (denied/unavailable, #63 case 3). Fall back cache-only: serve
+    // nearest the LAST-SERVED station first, else nearest the region center.
+    deliver(regionserve.serveNoFix(rec, readJson(LAST_STATION_KEY), localStorage));
   }, { timeout: 15000, maximumAge: 60000 });
 }
 
@@ -524,9 +525,13 @@ Pebble.addEventListener('webviewclosed', function (e) {
     return;
   }
   // Region: geocode the place, select the nearby stations, download them all.
-  geocode.geocode(loc.place, function (coords) {
+  geocode.geocode(loc.place, function (coords, reason) {
     if (!coords) {
-      region.write(localStorage, { mode: 'region', place: loc.place, center: null, radiusKm: loc.radiusKm, cap: REGION_CAP, stations: [], rangeDays: loc.rangeDays, fetchedAt: null, truncated: false, error: 'Couldn\'t find "' + loc.place + '"' });
+      // #63 case 2: an offline pin must say so, not read as "Couldn't find".
+      var msg = reason === 'offline'
+        ? 'Connect to the internet to download "' + loc.place + '"'
+        : 'Couldn\'t find "' + loc.place + '"';
+      region.write(localStorage, { mode: 'region', place: loc.place, center: null, radiusKm: loc.radiusKm, cap: REGION_CAP, stations: [], rangeDays: loc.rangeDays, fetchedAt: null, truncated: false, error: msg });
       return;
     }
     var cands = catalog.unionStations(catalog.readCache(localStorage), STATIONS);

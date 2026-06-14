@@ -21,3 +21,67 @@ test('parseGeocode returns null on empty/garbage/missing coords', () => {
   assert.strictEqual(geocode.parseGeocode(null), null);
   assert.strictEqual(geocode.parseGeocode([{ lat: 'x', lon: 'y' }]), null);
 });
+
+// --- #63 case 2: geocode surfaces WHY it failed (offline vs notfound) ---
+// geocode(place, cb) now calls cb(coords, reason). reason is null on success,
+// 'offline' on a transport failure (network/timeout/HTTP error), 'notfound'
+// on a well-formed empty result. The caller turns 'offline' into a
+// connect-to-internet message instead of "Couldn't find".
+
+function withFakeXhr(impl, run) {
+  const prev = global.XMLHttpRequest;
+  global.XMLHttpRequest = function () {
+    this.open = function () {};
+    this.setRequestHeader = function () {};
+    this.send = impl.bind(this);
+  };
+  try { run(); } finally { global.XMLHttpRequest = prev; }
+}
+
+test('geocode reports null reason and coords on success', () => {
+  let got;
+  withFakeXhr(function () {
+    this.status = 200;
+    this.responseText = JSON.stringify([{ lat: '1.5', lon: '2.5' }]);
+    this.onload();
+  }, () => {
+    geocode.geocode('somewhere', (coords, reason) => { got = { coords, reason }; });
+  });
+  assert.deepStrictEqual(got, { coords: { lat: 1.5, lon: 2.5 }, reason: null });
+});
+
+test('geocode reports notfound on a well-formed empty result', () => {
+  let got;
+  withFakeXhr(function () {
+    this.status = 200;
+    this.responseText = '[]';
+    this.onload();
+  }, () => {
+    geocode.geocode('nowhere', (coords, reason) => { got = { coords, reason }; });
+  });
+  assert.deepStrictEqual(got, { coords: null, reason: 'notfound' });
+});
+
+test('geocode reports offline on a network error', () => {
+  let got;
+  withFakeXhr(function () { this.onerror(); }, () => {
+    geocode.geocode('x', (coords, reason) => { got = { coords, reason }; });
+  });
+  assert.deepStrictEqual(got, { coords: null, reason: 'offline' });
+});
+
+test('geocode reports offline on a timeout', () => {
+  let got;
+  withFakeXhr(function () { this.ontimeout(); }, () => {
+    geocode.geocode('x', (coords, reason) => { got = { coords, reason }; });
+  });
+  assert.deepStrictEqual(got, { coords: null, reason: 'offline' });
+});
+
+test('geocode reports offline on a non-2xx HTTP status', () => {
+  let got;
+  withFakeXhr(function () { this.status = 503; this.onload(); }, () => {
+    geocode.geocode('x', (coords, reason) => { got = { coords, reason }; });
+  });
+  assert.deepStrictEqual(got, { coords: null, reason: 'offline' });
+});
