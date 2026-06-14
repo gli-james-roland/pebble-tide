@@ -35,7 +35,7 @@ test('pageUrl shows a region error when present', () => {
 test('pageUrl labels the radius and offline-days groups as sub-headings', () => {
   const url = config.pageUrl({ mode: 'region', place: 'Hobart', radiusKm: 75, rangeDays: 45, stations: [{ id: 'a' }] });
   const html = decodeURIComponent(url.replace('data:text/html;charset=utf-8,', ''));
-  assert.ok(html.indexOf('Search radius') !== -1, 'radius sub-heading');
+  assert.ok(html.indexOf('Cache radius') !== -1, 'radius sub-heading');
   assert.ok(html.indexOf('Offline days') !== -1, 'offline-days sub-heading');
 });
 
