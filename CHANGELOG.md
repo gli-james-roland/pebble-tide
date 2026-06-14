@@ -7,6 +7,8 @@ notes; `publish.sh` posts the matching version's section to the appstore.
 Write the next release's notes as bullets under `## [Unreleased]`.
 
 ## [Unreleased]
+
+## [1.0.5] - 2026-06-13
 - Pin a region instead of a single station: pick a place and a cache radius, and download up to 45 days of tides for every station in that area. Offline, the watch shows the nearest cached station and switches as you move; it refreshes in the background when you're online. Replaces the single-station pin.
 
 ## [1.0.4] - 2026-06-12
