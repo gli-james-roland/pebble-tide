@@ -51,5 +51,13 @@ module.exports = [
   {"provider":"bom","id":"WA_TP015","officialName":"Fremantle","operating":true,"latitude":-32.0558,"longitude":115.7395,"tz":"Australia/Perth","region":"WA"},
   {"provider":"bom","id":"TAS_TP003","officialName":"Hobart","operating":true,"latitude":-42.877328,"longitude":147.340953,"tz":"Australia/Hobart","region":"TAS"},
   {"provider":"bom","id":"SA_TP001","officialName":"Port Adelaide (Outer Harbor)","operating":true,"latitude":-34.779761,"longitude":138.480728,"tz":"Australia/Adelaide","region":"SA"},
-  {"provider":"bom","id":"NT_TP001","officialName":"Darwin","operating":true,"latitude":-12.4718,"longitude":130.8459,"tz":"Australia/Darwin","region":"NT"}
+  {"provider":"bom","id":"NT_TP001","officialName":"Darwin","operating":true,"latitude":-12.4718,"longitude":130.8459,"tz":"Australia/Darwin","region":"NT"},
+  {"provider":"uk","id":"0089","officialName":"Dover","operating":true,"latitude":51.116666,"longitude":1.316666},
+  {"provider":"uk","id":"0065","officialName":"Portsmouth","operating":true,"latitude":50.8,"longitude":-1.116666},
+  {"provider":"uk","id":"0478","officialName":"Holyhead","operating":true,"latitude":53.316666,"longitude":-4.616666},
+  {"provider":"uk","id":"0496","officialName":"Milford Haven","operating":true,"latitude":51.7,"longitude":-5.05},
+  {"provider":"uk","id":"0244","officialName":"Aberdeen","operating":true,"latitude":57.15,"longitude":-2.066666},
+  {"provider":"uk","id":"0225","officialName":"Leith","operating":true,"latitude":55.983333,"longitude":-3.183333},
+  {"provider":"uk","id":"0638","officialName":"Belfast","operating":true,"latitude":54.6,"longitude":-5.916666},
+  {"provider":"uk","id":"0617","officialName":"Dublin (North Wall)","operating":true,"latitude":53.35,"longitude":-6.216666}
 ];

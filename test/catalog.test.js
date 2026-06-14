@@ -116,3 +116,31 @@ test('unionStations omits tz/region for non-BOM records', () => {
   assert.ok(!('tz' in out[0]));
   assert.ok(!('region' in out[0]));
 });
+
+const seedStations = require('../src/pkjs/stations');
+
+test('seed catalog includes provider:"uk" entries with valid coordinates', () => {
+  const ukSeed = seedStations.filter((s) => s.provider === 'uk');
+  assert.ok(ukSeed.length >= 4, 'expected a spread of seeded UK ports');
+  ukSeed.forEach((s) => {
+    assert.strictEqual(typeof s.id, 'string');
+    assert.ok(s.id.length > 0);
+    assert.strictEqual(typeof s.officialName, 'string');
+    assert.ok(s.officialName.length > 0);
+    assert.strictEqual(s.operating, true);
+    assert.strictEqual(typeof s.latitude, 'number');
+    assert.strictEqual(typeof s.longitude, 'number');
+    // British Isles bounding box: ~49-61N, ~-11 to +2E.
+    assert.ok(s.latitude >= 49 && s.latitude <= 61, 'latitude in UK range');
+    assert.ok(s.longitude >= -11 && s.longitude <= 2.5, 'longitude in UK range');
+  });
+});
+
+test('offline first-run UK position selects a seeded UK station over a far foreign one', () => {
+  // Empty cache => unionStations returns the raw seed (cold offline first run).
+  const union = catalog.unionStations({}, seedStations);
+  // London-ish coordinate; nearest seeded port is a UK one, not a far foreign
+  // station (e.g. Seattle/Sydney that also live in the seed).
+  const result = geo.nearestUsableStation(union, 51.5, -0.12);
+  assert.strictEqual(result.station.provider, 'uk');
+});
