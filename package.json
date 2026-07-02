@@ -27,6 +27,9 @@
     "watchapp": {
       "watchface": false
     },
+    "capabilities": [
+      "configurable"
+    ],
     "messageKeys": [
       "CHUNK_INDEX",
       "CHUNK_TOTAL",
