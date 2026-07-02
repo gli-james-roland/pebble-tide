@@ -22,8 +22,13 @@ function fakeLocalStorage() {
 test('offline launch with a pinned region serves the cached station and makes zero network calls', () => {
   const ls = fakeLocalStorage();
 
-  // Seed a region with one station and a valid cached blob for it.
+  // Seed a region with one station and a valid cached blob for it. Anchor the
+  // cache date to today (matching index.js todayStr()) so the region stays
+  // fresh regardless of when the test runs -- a hardcoded date eventually ages
+  // past regionNeedsRefresh's threshold and trips a real network refresh.
   const now = Math.floor(Date.now() / 1000);
+  const d = new Date();
+  const today = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
   const station = { id: 'STN_A', officialName: 'Test Harbour', latitude: 47.6, longitude: -122.3, operating: true, provider: 'noaa' };
   const points = [
     { epoch: now - 3600, heightCm: 120, kind: 1 },
@@ -31,11 +36,11 @@ test('offline launch with a pinned region serves the cached station and makes ze
     { epoch: now + 7200, heightCm: 110, kind: 1 },
   ];
   const u8 = blob.packWeek(points, station, 0, []);
-  blobcache.setBytes(ls, station.id, u8, '2026-06-13', blob.BLOB_VERSION);
+  blobcache.setBytes(ls, station.id, u8, today, blob.BLOB_VERSION);
   region.write(ls, {
     mode: 'region', place: 'Seattle', center: { lat: 47.6, lon: -122.3 },
     radiusKm: 75, cap: 400, stations: [station], rangeDays: 45,
-    fetchedAt: '2026-06-13', truncated: false, error: null,
+    fetchedAt: today, truncated: false, error: null,
   });
 
   // Stub the PebbleKit JS environment.
