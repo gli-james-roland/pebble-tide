@@ -7,6 +7,7 @@ notes; `publish.sh` posts the matching version's section to the appstore.
 Write the next release's notes as bullets under `## [Unreleased]`.
 
 ## [Unreleased]
+- Fixed the phone Settings gear not appearing, so you can set units, clock, and mid-tide again.
 
 ## [1.0.6] - 2026-06-13
 - United Kingdom, Ireland and Channel Islands tide coverage via the UK Hydrographic Office (EasyTide).
