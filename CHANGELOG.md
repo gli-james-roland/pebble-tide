@@ -7,6 +7,8 @@ notes; `publish.sh` posts the matching version's section to the appstore.
 Write the next release's notes as bullets under `## [Unreleased]`.
 
 ## [Unreleased]
+
+## [1.0.7] - 2026-07-02
 - Fixed the phone Settings gear not appearing, so you can set units, clock, and mid-tide again.
 
 ## [1.0.6] - 2026-06-13
