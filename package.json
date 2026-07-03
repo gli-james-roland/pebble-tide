@@ -36,7 +36,8 @@
       "CHUNK_DATA",
       "CONFIG_UNITS",
       "CONFIG_CLOCK",
-      "CONFIG_MIDTIDE"
+      "CONFIG_MIDTIDE",
+      "STATUS_TEXT"
     ],
     "resources": {
       "media": [
