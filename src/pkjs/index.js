@@ -41,6 +41,15 @@ function sendConfig() {
   );
 }
 
+// Tell the watch WHY it has no tides yet (#92). The watch shows this in place of
+// "Loading…" only while it holds no tide data, so it never clobbers a good blob.
+function sendStatus(text) {
+  console.log('Status to watch: ' + text);
+  Pebble.sendAppMessage({ STATUS_TEXT: text },
+    function () {},
+    function (e) { console.log('Status send failed: ' + JSON.stringify(e)); });
+}
+
 // Issue #3: fetch a full week of high/low extrema, pack into a versioned blob,
 // and stream it to the watch in chunks. Refresh only on a new calendar day or
 // a changed nearest station. The watch persists the blob and works offline.
@@ -148,7 +157,10 @@ function sunDaysForWindow(from, to, station) {
   return days;
 }
 
-function fetchRange(station, distanceKm, forwardDays) {
+var MAX_FETCH_ATTEMPTS = 3; // one initial try + 2 retries before giving up (#92)
+
+function fetchRange(station, distanceKm, forwardDays, attempt) {
+  attempt = attempt || 1;
   var now = new Date();
   var from = new Date(now.getTime() - BACK_DAYS * 24 * 60 * 60 * 1000);
   var to = new Date(now.getTime() + forwardDays * 24 * 60 * 60 * 1000);
@@ -162,10 +174,23 @@ function fetchRange(station, distanceKm, forwardDays) {
   function handle(e1, raw) {
     var points = providers.pointsFor(station, e1, raw);
     if (points.length === 0) {
-      console.log('hilo fetch failed (' + e1 + '); keeping cache');
+      if (attempt < MAX_FETCH_ATTEMPTS) {
+        console.log('hilo fetch failed (' + e1 + '); retry ' + (attempt + 1) + '/' + MAX_FETCH_ATTEMPTS);
+        fetchRange(station, distanceKm, forwardDays, attempt + 1);
+        return;
+      }
+      // Out of retries. A watch that already has data ignores this (it only
+      // shows STATUS_TEXT while empty), so a failed daily refresh never clobbers
+      // yesterday's cache; a fresh install with no data finally sees a reason.
+      console.log('hilo fetch failed (' + e1 + ') after ' + MAX_FETCH_ATTEMPTS + ' tries');
+      sendStatus('Tide data download failed');
       return;
     }
     var u8 = blob.packWeek(points, station, distanceKm, sunDays);
+    // Cache the blob on the phone too (not just META), so a later launch whose
+    // data is "fresh" can re-send it to a watch that lost its persisted copy
+    // (reinstall wipes the watch, not the phone's localStorage -- #92).
+    blobcache.setBytes(localStorage, station.id, u8, todayStr(), blob.BLOB_VERSION);
     sendBlob(u8, station.id, function () {
       writeJson(META_KEY, { date: todayStr(), stationId: station.id, version: blob.BLOB_VERSION });
     });
@@ -184,7 +209,40 @@ function maybeRefresh(station, distanceKm, forwardDays) {
     console.log('Refreshing ' + days + ' days for ' + station.officialName);
     fetchRange(station, distanceKm, days);
   } else {
+    // Fresh: skip the network AND the resend. The watch already has this data
+    // persisted; if it doesn't (reinstall, #92), it asks via WATCH_NEEDS_DATA
+    // and serveWatchRequest re-sends the phone-cached blob. No wasted send on
+    // the common warm launch.
     console.log('Cache is fresh for ' + station.officialName + '; not fetching');
+  }
+}
+
+// Handshake for the reinstall/desync case (#92). On boot a watch with no
+// persisted blob sends WATCH_NEEDS_DATA; the phone's record may say "fresh" and
+// so send nothing, leaving the watch on "Loading…" forever. Here we deliver from
+// the phone cache (no network) if we can, else fetch. Only fires when the watch
+// actually lacks data, so warm launches stay send-free.
+function serveWatchRequest() {
+  var rec = region.read(localStorage);
+  if (rec.mode === 'region') {
+    console.log('Watch needs data; serving pinned region from cache');
+    serveRegion(rec);
+    return;
+  }
+  var last = readJson(LAST_STATION_KEY);
+  if (!last) {
+    // No remembered station yet: the launch's own locate() path will deliver
+    // (or report a reason), so nothing to do here.
+    console.log('Watch needs data but no remembered station; launch flow will deliver');
+    return;
+  }
+  var cached = blobcache.getBytes(localStorage, last.id);
+  if (cached && cached.version === blob.BLOB_VERSION) {
+    console.log('Watch needs data; resending cached blob for ' + last.officialName);
+    sendBlob(cached.u8, last.id);
+  } else {
+    console.log('Watch needs data; no phone blob, fetching for ' + last.officialName);
+    fetchRange(last, last.distanceKm || 0, WEEK_DAYS);
   }
 }
 
@@ -285,6 +343,7 @@ function onPosition(pos) {
   var result = selectStation(pos.coords.latitude, pos.coords.longitude);
   if (!result) {
     console.log('No usable station found');
+    sendStatus('No tide station found');
     return;
   }
   writeJson(LAST_STATION_KEY, {
@@ -303,9 +362,12 @@ function onPositionError(err) {
   if (last) {
     console.log('Falling back to last station: ' + last.officialName);
     maybeRefresh(last, last.distanceKm || 0);
-  } else {
-    console.log('No location and no remembered station');
+    return;
   }
+  // No fix and no station to fall back on -> the watch would hang. Tell it why.
+  // code 1 === PERMISSION_DENIED (W3C geolocation); 2/3 are unavailable/timeout.
+  console.log('No location and no remembered station');
+  sendStatus(err && err.code === 1 ? 'Location permission off' : 'No location fix');
 }
 
 // ---------------------------------------------------------------------------
@@ -496,6 +558,15 @@ Pebble.addEventListener('ready', function () {
     // slices in the background for next launch (does not block this display).
     locate();
     backgroundRefreshCatalogs(cache);
+  }
+});
+
+// The watch reports (on boot, once it sees the phone is alive) that it has no
+// tide data. Deliver some now -- from cache if possible (#92 reinstall desync).
+Pebble.addEventListener('appmessage', function (e) {
+  if (e && e.payload && e.payload.WATCH_NEEDS_DATA) {
+    console.log('Watch requested data (no persisted blob)');
+    serveWatchRequest();
   }
 });
 

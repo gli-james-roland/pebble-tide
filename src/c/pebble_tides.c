@@ -89,6 +89,10 @@ static int s_rx_len = 0;
 
 static char s_title_text[24];
 
+// Why the phone can't deliver tides yet (#92). Shown in place of "Loading…"
+// only while we hold no tide data, so it never overwrites a good reading.
+static char s_status_text[48] = "";
+
 // Graph scratch, kept off the small (~2 KB) app stack.
 static int16_t s_sx[MAX_WIN_POINTS], s_sy[MAX_WIN_POINTS];
 static uint8_t s_sk[MAX_WIN_POINTS];
@@ -299,7 +303,7 @@ static void prv_update_status(void) {
 
 static void prv_update_chrome(void) {
   if (!s_has_data || s_focus_idx < 0) {
-    text_layer_set_text(s_title_layer, "Loading…");
+    text_layer_set_text(s_title_layer, s_status_text[0] ? s_status_text : "Loading…");
     text_layer_set_text(s_sub_layer, "");
     text_layer_set_text(s_station_layer, "");
     prv_update_status();
@@ -680,6 +684,18 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
 // AppMessage chunk reassembly
 // ---------------------------------------------------------------------------
 
+// Ask the phone to (re)send tide data (#92). The watch persists its blob across
+// launches, but a reinstall wipes it while the phone's cache survives and thinks
+// the watch is up to date -- so it would send nothing. We request data once we
+// know the phone is alive (a config message just arrived) and we have none.
+static void prv_request_data(void) {
+  DictionaryIterator *out;
+  if (app_message_outbox_begin(&out) != APP_MSG_OK) { return; }
+  dict_write_uint8(out, MESSAGE_KEY_WATCH_NEEDS_DATA, 1);
+  app_message_outbox_send();
+  APP_LOG(APP_LOG_LEVEL_INFO, "Requested data from phone (no persisted blob)");
+}
+
 // Issue #9: a display-config message (independent of the blob). Presence of
 // MESSAGE_KEY_CONFIG_UNITS marks it. Store, persist, redraw — no refetch.
 static bool prv_handle_config(DictionaryIterator *iter) {
@@ -700,10 +716,27 @@ static bool prv_handle_config(DictionaryIterator *iter) {
   prv_update_chrome();
   layer_mark_dirty(s_graph_layer);
   APP_LOG(APP_LOG_LEVEL_INFO, "Config: units=%d clock=%d mid=%d", s_units, s_clock, s_show_midtide);
+  // The phone is alive (it just sent config). If we booted without a persisted
+  // blob, ask it for data now that we know it's listening (#92).
+  if (!s_has_data) { prv_request_data(); }
+  return true;
+}
+
+// Issue #92: a diagnostic reason from the phone (permission off, no fix, no
+// station, download failed). Stored and shown in place of "Loading…" while we
+// have no tide data; ignored on screen once a blob has loaded.
+static bool prv_handle_status(DictionaryIterator *iter) {
+  Tuple *status_t = dict_find(iter, MESSAGE_KEY_STATUS_TEXT);
+  if (!status_t) { return false; }
+  strncpy(s_status_text, status_t->value->cstring, sizeof(s_status_text) - 1);
+  s_status_text[sizeof(s_status_text) - 1] = '\0';
+  prv_update_chrome(); // repaints; only surfaces while s_has_data is false
+  APP_LOG(APP_LOG_LEVEL_INFO, "Status: %s", s_status_text);
   return true;
 }
 
 static void prv_inbox_received(DictionaryIterator *iter, void *context) {
+  if (prv_handle_status(iter)) { return; }
   if (prv_handle_config(iter)) { return; }
 
   Tuple *idx_t = dict_find(iter, MESSAGE_KEY_CHUNK_INDEX);
@@ -732,6 +765,7 @@ static void prv_inbox_received(DictionaryIterator *iter, void *context) {
   if (s_rx_total > 0 && s_rx_count >= s_rx_total) {
     if (prv_parse_blob(s_rx_buf, s_rx_len)) {
       prv_persist_blob(s_rx_buf, s_rx_len);
+      s_status_text[0] = '\0'; // real data arrived; drop any prior reason
       prv_reset_focus();
       prv_update_chrome();
       layer_mark_dirty(s_graph_layer);
