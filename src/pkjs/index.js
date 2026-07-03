@@ -195,32 +195,32 @@ function selectStation(lat, lon) {
   return geo.nearestUsableStation(candidates, lat, lon);
 }
 
-// Fetch + parse one provider's catalog. Resolves to a slice-result the pure
-// orchestrate.mergeRefreshResults understands: { ok:true, stations, fetchedAt,
-// version } on success, { ok:false } on any failure. Never rejects — a failed
-// fetch is isolated to that provider, not propagated.
-function fetchCatalogSlice(name) {
-  return new Promise(function (resolve) {
-    var adapter = providers.REGISTRY[name];
-    fetchJson(adapter.catalogUrl(), function (err, json) {
-      if (err) {
-        console.log(name + ' catalog fetch failed (' + err + '); keeping last-good');
-        resolve({ ok: false });
-        return;
-      }
-      try {
-        resolve({
-          ok: true,
-          stations: adapter.parseCatalog(json),
-          fetchedAt: Date.now(),
-          version: blob.BLOB_VERSION,
-        });
-      } catch (e) {
-        console.log(name + ' catalog parse failed (' + e + '); keeping last-good');
-        resolve({ ok: false });
-      }
-    }, adapter.requestHeaders);
-  });
+// Fetch + parse one provider's catalog. Hands the callback a slice-result the
+// pure orchestrate.mergeRefreshResults understands: { ok:true, stations,
+// fetchedAt, version } on success, { ok:false } on any failure. Callback-based
+// (not Promise): the on-device PebbleKit JS runtime is ES5-style and has no
+// Promise, so a Promise here throws on the watch and hangs the launch (#90).
+// A failed fetch is isolated to that provider, never propagated.
+function fetchCatalogSlice(name, done) {
+  var adapter = providers.REGISTRY[name];
+  fetchJson(adapter.catalogUrl(), function (err, json) {
+    if (err) {
+      console.log(name + ' catalog fetch failed (' + err + '); keeping last-good');
+      done({ ok: false });
+      return;
+    }
+    try {
+      done({
+        ok: true,
+        stations: adapter.parseCatalog(json),
+        fetchedAt: Date.now(),
+        version: blob.BLOB_VERSION,
+      });
+    } catch (e) {
+      console.log(name + ' catalog parse failed (' + e + '); keeping last-good');
+      done({ ok: false });
+    }
+  }, adapter.requestHeaders);
 }
 
 // Persist whatever a refresh round produced, with per-provider failure
@@ -244,18 +244,33 @@ function backgroundRefreshCatalogs(cache) {
   }
   console.log('Background catalog refresh: ' + stale.join(', '));
   stale.forEach(function (name) {
-    fetchCatalogSlice(name).then(function (result) { persistRefresh(name, result); });
+    fetchCatalogSlice(name, function (result) { persistRefresh(name, result); });
   });
 }
 
-// Cold first run (no cache): await BOTH catalog fetches, persist whatever
+// Cold first run (no cache): await EVERY catalog fetch, persist whatever
 // succeeded, then run the geolocation->select flow over the resulting union.
-// If both fail (offline), the union falls back to the seed so the watch still
+// If all fail (offline), the union falls back to the seed so the watch still
 // shows a station (far-flag handled by blob). Always proceeds to select.
+// Callback fan-in, not Promise.all: the on-device runtime has no Promise (#90).
+// finish() runs exactly once, after the last slice lands.
 function coldStartThenLocate() {
-  Promise.all(CATALOG_PROVIDERS.map(fetchCatalogSlice)).then(function (slices) {
+  var slices = new Array(CATALOG_PROVIDERS.length);
+  var pending = CATALOG_PROVIDERS.length;
+  var settled = false;
+  function finish() {
+    if (settled) { return; }
+    settled = true;
     CATALOG_PROVIDERS.forEach(function (name, i) { persistRefresh(name, slices[i]); });
     locate();
+  }
+  if (pending === 0) { finish(); return; }
+  CATALOG_PROVIDERS.forEach(function (name, i) {
+    fetchCatalogSlice(name, function (result) {
+      slices[i] = result;
+      pending -= 1;
+      if (pending === 0) { finish(); }
+    });
   });
 }
 
