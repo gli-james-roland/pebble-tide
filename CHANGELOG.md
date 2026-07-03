@@ -7,7 +7,7 @@ notes; `publish.sh` posts the matching version's section to the appstore.
 Write the next release's notes as bullets under `## [Unreleased]`.
 
 ## [Unreleased]
-- Fixed the watch hanging on "Loading…" after reinstalling the app. The phone remembered it had already sent today's tides, so it sent nothing to the freshly wiped watch. It now re-sends the tides it already has on every launch.
+- Fixed the watch hanging on "Loading…" after reinstalling the app. The phone remembered it had already sent today's tides, so it sent nothing to the freshly wiped watch. Now a watch that boots with no data asks the phone for it, and the phone re-sends the tides it already has — no wasted resend on a normal launch.
 - When the phone genuinely can't load tides, the watch now says why instead of showing "Loading…" forever: "Location permission off", "No location fix", "No tide station found", or "Tide data download failed" (after a few retries).
 
 ## [1.0.8] - 2026-07-02

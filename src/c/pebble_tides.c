@@ -684,6 +684,18 @@ static void prv_graph_update(Layer *layer, GContext *ctx) {
 // AppMessage chunk reassembly
 // ---------------------------------------------------------------------------
 
+// Ask the phone to (re)send tide data (#92). The watch persists its blob across
+// launches, but a reinstall wipes it while the phone's cache survives and thinks
+// the watch is up to date -- so it would send nothing. We request data once we
+// know the phone is alive (a config message just arrived) and we have none.
+static void prv_request_data(void) {
+  DictionaryIterator *out;
+  if (app_message_outbox_begin(&out) != APP_MSG_OK) { return; }
+  dict_write_uint8(out, MESSAGE_KEY_WATCH_NEEDS_DATA, 1);
+  app_message_outbox_send();
+  APP_LOG(APP_LOG_LEVEL_INFO, "Requested data from phone (no persisted blob)");
+}
+
 // Issue #9: a display-config message (independent of the blob). Presence of
 // MESSAGE_KEY_CONFIG_UNITS marks it. Store, persist, redraw — no refetch.
 static bool prv_handle_config(DictionaryIterator *iter) {
@@ -704,6 +716,9 @@ static bool prv_handle_config(DictionaryIterator *iter) {
   prv_update_chrome();
   layer_mark_dirty(s_graph_layer);
   APP_LOG(APP_LOG_LEVEL_INFO, "Config: units=%d clock=%d mid=%d", s_units, s_clock, s_show_midtide);
+  // The phone is alive (it just sent config). If we booted without a persisted
+  // blob, ask it for data now that we know it's listening (#92).
+  if (!s_has_data) { prv_request_data(); }
   return true;
 }
 

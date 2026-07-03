@@ -37,7 +37,8 @@
       "CONFIG_UNITS",
       "CONFIG_CLOCK",
       "CONFIG_MIDTIDE",
-      "STATUS_TEXT"
+      "STATUS_TEXT",
+      "WATCH_NEEDS_DATA"
     ],
     "resources": {
       "media": [

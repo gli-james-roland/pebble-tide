@@ -208,20 +208,41 @@ function maybeRefresh(station, distanceKm, forwardDays) {
   if (refresh.shouldRefresh(todayStr(), station.id, blob.BLOB_VERSION, readJson(META_KEY))) {
     console.log('Refreshing ' + days + ' days for ' + station.officialName);
     fetchRange(station, distanceKm, days);
+  } else {
+    // Fresh: skip the network AND the resend. The watch already has this data
+    // persisted; if it doesn't (reinstall, #92), it asks via WATCH_NEEDS_DATA
+    // and serveWatchRequest re-sends the phone-cached blob. No wasted send on
+    // the common warm launch.
+    console.log('Cache is fresh for ' + station.officialName + '; not fetching');
+  }
+}
+
+// Handshake for the reinstall/desync case (#92). On boot a watch with no
+// persisted blob sends WATCH_NEEDS_DATA; the phone's record may say "fresh" and
+// so send nothing, leaving the watch on "Loading…" forever. Here we deliver from
+// the phone cache (no network) if we can, else fetch. Only fires when the watch
+// actually lacks data, so warm launches stay send-free.
+function serveWatchRequest() {
+  var rec = region.read(localStorage);
+  if (rec.mode === 'region') {
+    console.log('Watch needs data; serving pinned region from cache');
+    serveRegion(rec);
     return;
   }
-  // The phone's record says the watch is up to date, but the watch may have lost
-  // its persisted blob (a reinstall wipes the watch but not the phone's
-  // localStorage -- #92). Re-send the phone-cached blob so the watch reloads
-  // without a network round-trip; if the phone has no cached blob, fall back to
-  // a fetch rather than leave the watch stuck on "Loading…".
-  var cached = blobcache.getBytes(localStorage, station.id);
+  var last = readJson(LAST_STATION_KEY);
+  if (!last) {
+    // No remembered station yet: the launch's own locate() path will deliver
+    // (or report a reason), so nothing to do here.
+    console.log('Watch needs data but no remembered station; launch flow will deliver');
+    return;
+  }
+  var cached = blobcache.getBytes(localStorage, last.id);
   if (cached && cached.version === blob.BLOB_VERSION) {
-    console.log('Cache fresh; resending cached blob for ' + station.officialName);
-    sendBlob(cached.u8, station.id);
+    console.log('Watch needs data; resending cached blob for ' + last.officialName);
+    sendBlob(cached.u8, last.id);
   } else {
-    console.log('Cache fresh but no phone blob; fetching for ' + station.officialName);
-    fetchRange(station, distanceKm, days);
+    console.log('Watch needs data; no phone blob, fetching for ' + last.officialName);
+    fetchRange(last, last.distanceKm || 0, WEEK_DAYS);
   }
 }
 
@@ -537,6 +558,15 @@ Pebble.addEventListener('ready', function () {
     // slices in the background for next launch (does not block this display).
     locate();
     backgroundRefreshCatalogs(cache);
+  }
+});
+
+// The watch reports (on boot, once it sees the phone is alive) that it has no
+// tide data. Deliver some now -- from cache if possible (#92 reinstall desync).
+Pebble.addEventListener('appmessage', function (e) {
+  if (e && e.payload && e.payload.WATCH_NEEDS_DATA) {
+    console.log('Watch requested data (no persisted blob)');
+    serveWatchRequest();
   }
 });
 

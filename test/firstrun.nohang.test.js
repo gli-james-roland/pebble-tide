@@ -75,6 +75,11 @@ function runLaunch(ls, opts) {
   delete require.cache[require.resolve('../src/pkjs/index.js')];
   require('../src/pkjs/index.js');
   listeners.ready();
+  // The watch reports it has no persisted blob (reinstall) once it sees the
+  // phone is alive. Fired after ready() to mirror the real handshake order.
+  if (opts.requestData && listeners.appmessage) {
+    listeners.appmessage({ payload: { WATCH_NEEDS_DATA: 1 } });
+  }
 
   return {
     sent,
@@ -88,35 +93,52 @@ function cleanup() {
   delete global.localStorage; delete global.XMLHttpRequest; delete global.Pebble;
 }
 
-test('fresh cacheMeta + reinstalled watch: resend the phone-cached blob (no network)', () => {
-  const ls = fakeLocalStorage();
+// A warm Auto launch whose cache is fresh. Returns { ls, station, u8 } so tests
+// can drive it with or without the watch's WATCH_NEEDS_DATA request.
+function seedFreshWarm(ls) {
   const today = todayStr();
   const station = {
     provider: 'dfo', id: 'STN_X', officialName: 'Ambleside', operating: true,
     latitude: 49.3, longitude: -123.15, region: 'BC', tz: 'America/Vancouver',
   };
-  // Warm path: fresh catalog slices mean launch runs locate() directly and the
-  // background catalog refresh finds nothing stale (no network). Cache slices use
-  // the catalog record shape (name/lat/lng); unionStations normalizes it back.
+  // Fresh catalog slices -> launch runs locate() directly, background refresh
+  // finds nothing stale (no network). Slices use the catalog record shape.
   catalog.writeSlice(ls, 'dfo',
     [{ id: station.id, name: station.officialName, lat: station.latitude, lng: station.longitude, provider: 'dfo' }],
     Date.now(), blob.BLOB_VERSION);
   ['noaa', 'bom', 'uk'].forEach((p) => catalog.writeSlice(ls, p, [], Date.now(), blob.BLOB_VERSION));
-  // Phone thinks the watch is up to date (same day, station, version).
+  // Phone thinks the watch is up to date (same day, station, version)...
   ls.setItem(META_KEY, JSON.stringify({ date: today, stationId: station.id, version: blob.BLOB_VERSION }));
-  // ...and the phone still holds the blob it sent last time.
+  ls.setItem('lastStation', JSON.stringify({
+    id: station.id, officialName: station.officialName, latitude: station.latitude,
+    longitude: station.longitude, operating: true, provider: 'dfo', distanceKm: 1,
+  }));
+  // ...and still holds the blob it sent last time.
   const now = Math.floor(Date.now() / 1000);
   const u8 = blob.packWeek(
     [{ epoch: now - 3600, heightCm: 120, kind: 1 }, { epoch: now + 3600, heightCm: 30, kind: 2 }],
     station, 0, []
   );
   blobcache.setBytes(ls, station.id, u8, today, blob.BLOB_VERSION);
+  return { station, u8 };
+}
 
-  const r = runLaunch(ls, { geo: 'ok' });
+test('warm launch with fresh cache sends nothing to a watch that already has data', () => {
+  const ls = fakeLocalStorage();
+  seedFreshWarm(ls);
+  const r = runLaunch(ls, { geo: 'ok' }); // no WATCH_NEEDS_DATA
   cleanup();
+  assert.strictEqual(r.chunks.length, 0, 'no redundant blob resend on a warm launch');
+  assert.strictEqual(r.xhrCount, 0, 'and no network');
+});
 
+test('reinstalled watch requests data: phone resends the cached blob (no network)', () => {
+  const ls = fakeLocalStorage();
+  const { u8 } = seedFreshWarm(ls);
+  const r = runLaunch(ls, { geo: 'ok', requestData: true });
+  cleanup();
   const reassembled = [].concat.apply([], r.chunks.map((m) => m.CHUNK_DATA));
-  assert.deepStrictEqual(reassembled, Array.from(u8), 'watch received the cached blob');
+  assert.deepStrictEqual(reassembled, Array.from(u8), 'watch received the cached blob on request');
   assert.strictEqual(r.xhrCount, 0, 'resend must not hit the network');
 });
 
