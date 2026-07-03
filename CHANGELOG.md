@@ -7,6 +7,8 @@ notes; `publish.sh` posts the matching version's section to the appstore.
 Write the next release's notes as bullets under `## [Unreleased]`.
 
 ## [Unreleased]
+
+## [1.0.10] - 2026-07-02
 - Reissue of 1.0.9 so the watch shows the correct version number after updating (the 1.0.9 build still reported 1.0.8). Same fixes as 1.0.9.
 
 ## [1.0.9] - 2026-07-02
