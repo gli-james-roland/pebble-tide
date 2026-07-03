@@ -7,6 +7,7 @@ notes; `publish.sh` posts the matching version's section to the appstore.
 Write the next release's notes as bullets under `## [Unreleased]`.
 
 ## [Unreleased]
+- Fixed a fresh install hanging on "Loading…" and the Settings gear staying dark. The first launch used a JavaScript feature (Promise) the watch runtime does not support, which crashed the phone-side code before it could fetch tides or open settings.
 
 ## [1.0.7] - 2026-07-02
 - Fixed the phone Settings gear not appearing, so you can set units, clock, and mid-tide again.
