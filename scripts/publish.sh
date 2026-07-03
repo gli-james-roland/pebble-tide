@@ -24,6 +24,9 @@ if [ -z "$NOTES" ]; then
 fi
 
 echo "Building $NAME $VERSION ..."
+# Clean first: an incremental build can skip repackaging the .pbw after a version
+# bump, publishing a bundle that still carries the old versionLabel.
+pebble clean
 pebble build
 
 # pebble publish infers each screenshot's platform from the filename: it takes

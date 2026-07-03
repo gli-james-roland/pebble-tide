@@ -7,6 +7,7 @@ notes; `publish.sh` posts the matching version's section to the appstore.
 Write the next release's notes as bullets under `## [Unreleased]`.
 
 ## [Unreleased]
+- Reissue of 1.0.9 so the watch shows the correct version number after updating (the 1.0.9 build still reported 1.0.8). Same fixes as 1.0.9.
 
 ## [1.0.9] - 2026-07-02
 - Fixed the watch hanging on "Loading…" after reinstalling the app. The phone remembered it had already sent today's tides, so it sent nothing to the freshly wiped watch. Now a watch that boots with no data asks the phone for it, and the phone re-sends the tides it already has — no wasted resend on a normal launch.

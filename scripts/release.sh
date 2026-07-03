@@ -61,7 +61,10 @@ echo "Releasing Pebble Tides $VERSION ..."
 scripts/changelog.sh promote "$VERSION" "$(date +%F)"
 NOTES="$(scripts/changelog.sh extract "$VERSION")"
 
-# Build after the bump so the .pbw embeds the new version.
+# Build after the bump so the .pbw embeds the new version. Clean first: an
+# incremental build regenerates appinfo.json but can skip repackaging the .pbw,
+# shipping a bundle that still carries the old versionLabel.
+pebble clean
 pebble build
 
 git add package.json CHANGELOG.md
